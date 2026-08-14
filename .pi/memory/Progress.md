@@ -1,44 +1,58 @@
 # Progress — no-agents dot md
 
-## v1 — livrée (11 commits, tout vert)
+## v2 — IMPLÉMENTÉ ET VÉRIFIÉ (2026-08-14)
 
-- Extension `.pi/extensions/context-engine/` : frontmatter/match/engine/index + 4
-  fichiers de tests (30/30 `node --test`).
-- Exemples `.pi/context/` : ui.md, git-safety.md, test-context.md, README.md.
-- Skill `skill/context-engine/` : SKILL.md + 6 references + 6 templates.
-- E2E réel vérifié : injection `before_agent_start` (conventions UI) + garde
-  `git push` bloquée sans UI.
-- Diagnostiques pi-lens nettoyés (96 → 1 advisory volontaire) : tsconfig racine +
-  extension (lib es2023, allowImportingTsExtensions, types node), devDeps types,
-  upgrade du typescript bundlé pi-lens 4.9.5 → 5.9.3, bug réel `context` handler
-  (AgentMessage sans rôle "system" → message `user` + timestamp).
+Plan : `docs/plans/2026-08-15-context-engine-v2.md` (STATUT : implémenté).
 
-## v2 — décidé (2026-08-14, réponses utilisateur)
+### Ce qui a été livré
 
-Portée « tout le menu fort » :
+- **match.ts v2** : dimensions `model` (contains casse-insensible sur provider/id),
+  `cwd` (formes input), `sessionSize`/`contextFill` (nombre = minimum >=, ou
+  {min,max}), `result` (sortie outil, tool_result), `source` (égalité exacte, input).
+- **engine.ts v2** : 9 actions (inject, confirm, block, modify, tools, notify,
+  transform, handled, annotate), `VALID_EVENTS` (7), table événement→actions,
+  validation au parse (événement inconnu / action incompatible → throw), `selectForEvent`.
+- **index.ts v2** : `baseSubject` (model/cwd/sessionSize/contextFill), journal
+  d'activité (100 max), `notifyRule`/`notifyInject`/`notifyBlock` (hasUI gardé),
+  `applyTools` (getActiveTools/setActiveTools), handlers `input` (transform
+  chaîné/handled), `tool_result` (annotate/inject), `user_bash` (block/confirm/
+  modify via createLocalBashOperations), gardes session (`session_before_switch`,
+  `session_before_fork` → cancel), `before_agent_start`/`tool_call` étendus
+  (tools/notify + notifications auto), `context` inchangé.
+- **Commande `/nma`** : liste (editor), `reload` (relecture du dossier sans
+  redémarrage), `status` (journal + compteurs).
+- **Skill v2** : 6 references à jour, 14 templates (+8 : input-transform,
+  input-handled, tool-result-annotate, tool-result-inject, user-bash-guard,
+  session-guard, tools-toggle, notify), SKILL.md à jour.
+- **Exemples v2** : input.md (transform !review), tool-result.md (annotate échec
+  test), tools.md (exemple enable, prudent), session-guard.md (confirm /fork),
+  notify.md (warning git push). README v2.
+- **Tests** : 63/63 (`node --test "*.test.ts"`), tsc --noEmit propre.
 
-1. Événements : `input` (+transform/handled), `tool_result` (+annotate),
-   `user_bash` (gardes), `session_before_switch`/`session_before_fork` (gardes).
-2. Action `tools` (enable/disable via pi.setActiveTools).
-3. Action `notify` + notification quand une règle injecte ou bloque.
-4. Matching : `model`, `cwd`, `sessionSize`, `contextFill` (+ `result` pour
-   tool_result, `source` pour input — nécessaires au fonctionnement).
-5. Commande **`/nma`** (liste / reload sans redémarrage / état de session).
-Hors périmètre v2 : agent_end/relance, thinking, session_before_compact, outil
-context_rules, dimension git, autocomplétion.
+### E2E réel vérifié
 
-## À faire (ordre)
+- `pi --print "improve the ui"` → `8 rule(s) loaded`, injection des conventions UI
+  confirmée par le modèle (« chaînes en français, identifiants en anglais »).
+- `git push origin main` forcé → bloqué (« Commande Git potentiellement destructive »).
+- Aucune erreur de parse au chargement des 8 règles.
 
-- [ ] Plan v2 écrit → docs/plans/2026-08-15-context-engine-v2.md
-- [ ] Tâche 1 : match.ts v2 (nouvelles dimensions) + tests
-- [ ] Tâche 2 : engine.ts v2 (actions, sélection par événement) + tests
-- [ ] Tâche 3 : index.ts v2 (nouveaux handlers, dispatch actions, journal) + fake-pi tests
-- [ ] Tâche 4 : commande /nma + reload + status
-- [ ] Tâche 5 : skill v2 (schema/events/actions/matching/tool-hooks/examples + templates)
-- [ ] Tâche 6 : exemples v2 + README + E2E réel + commit
-- [ ] Sync plan doc si les tests TDD révèlent des corrections (comme v1)
+### Exécution
 
-## Prochaines étapes (hors v2)
+Subagents `worker` (deepseek-v4-flash), un écrivain à la fois, gate `node --test`
+sur chaque tâche : SA1 `0259ca9`, SA2 `16edd79`, SA3 `979b7fc` (relancé une fois —
+apostrophe cassant le workflowScript), SA4 `7a20506`, SA5 `326d268`.
+Dérogation : SA5 a enrichi `.pi/context/ui.md` (corps en français complet,
+frontmatter inchangé) — gardé.
 
-- Watcher de fichiers (reload auto), outil context_rules pour le LLM,
-  dimension git (nécessite exec — casse la pureté, à trancher), autocomplétion.
+### Hors périmètre v2 (roadmap)
+
+agent_end/relance, action thinking, session_before_compact, outil context_rules,
+dimension git (casse la pureté), autocomplétion /nma, watcher de fichiers.
+
+## Vérification avant déclaration de fini
+
+- [x] 63/63 tests, tsc propre (racine + extension)
+- [x] E2E réel (chargement, injection, garde, /nma couvert par fake-pi)
+- [x] Skill synchronisé avec le schéma v2
+- [x] Plan doc synchronisé (STATUT)
+- [x] Mémoire projet à jour

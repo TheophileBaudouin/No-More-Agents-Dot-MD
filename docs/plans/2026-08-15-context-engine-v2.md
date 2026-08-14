@@ -3,6 +3,13 @@
 Date : 2026-08-15 — Base : v1 livrée (30/30 tests, E2E vérifié). Décisions utilisateur
 verrouillées dans `docs/research/2026-08-14-sdk-surface-v2.md` §6.
 
+**STATUT : IMPLÉMENTÉ ET VÉRIFIÉ (2026-08-14).** 63/63 tests, tsc propre, E2E réel
+ok (8 règles chargées, injection avant_agent_start confirmée par le modèle, garde
+`git push` bloquée). Exécuté par subagents `worker` (deepseek-v4-flash), commits
+`0259ca9` (match), `16edd79` (engine), `979b7fc` (index + /nma), `7a20506` (skill),
+`326d268` (exemples + README). Dérogation notée : `ui.md` enrichi par SA5 (conventions
+complètes en français, frontmatter inchangé).
+
 ## Portée v2 (décidée)
 
 | Brique | Détail |
