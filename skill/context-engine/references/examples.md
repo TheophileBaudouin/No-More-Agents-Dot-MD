@@ -79,4 +79,103 @@ action: {type: inject}
 ---
 ```
 
+## 6. Transform user input (input → transform)
+
+Rewrite a raw input before the agent sees it:
+
+```markdown
+---
+name: quick-answer
+events: [input]
+match:
+  input: {contains: ["?quick "]}
+action:
+  type: transform
+  text: "Réponds brièvement à : {{texte}}"   # placeholder: remplacer par le texte voulu
+---
+```
+
+Note: `transform` remplace tout le texte de la saisie (le placeholder
+`{{texte}}` est un exemple — l'extension ne fait pas de substitution, le texte
+est statique).
+
+## 7. Handle input without the LLM (input → handled)
+
+```markdown
+---
+name: ping
+events: [input]
+match:
+  input: {contains: ["ping"]}
+action: {type: handled}
+---
+```
+
+`handled` consomme la saisie : l'agent ne tourne pas (utilisez plutôt
+`notify` en complément pour donner un retour visible).
+
+## 8. React to a test failure (tool_result → annotate)
+
+```markdown
+---
+name: test-failure
+events: [tool_result]
+match:
+  tool: bash
+  command: {contains: ["pytest"]}
+  result: {contains: ["FAILED"]}
+action:
+  type: annotate
+  append: "Conseil : lancez d'abord le test isolé, puis corrigez."
+---
+
+# (optionnel) Contexte ajouté au résultat
+
+- Ce body n'est PAS injecté pour `annotate` — seul `append` l'est.
+```
+
+## 9. Toggle tools by context (tools)
+
+```markdown
+---
+name: secure-project
+events: [before_agent_start]
+match:
+  cwd: {contains: ["sensitive-repo"]}
+action:
+  type: tools
+  disable: [bash]
+priority: high
+---
+```
+
+## 10. Session guard (confirm before /fork)
+
+```markdown
+---
+name: fork-guard
+events: [session_before_fork]
+action:
+  type: confirm
+  message: "Forker cette session ?"
+priority: high
+---
+```
+
+## 11. Notify when a rule acts
+
+```markdown
+---
+name: git-alert
+events: [tool_call]
+match:
+  tool: bash
+  command: {contains: ["git push"]}
+action:
+  type: notify
+  message: "Push détecté."
+  level: warning
+---
+```
+
 For guard rules the body is unused; keep it empty.

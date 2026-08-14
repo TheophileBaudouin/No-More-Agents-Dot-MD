@@ -3,20 +3,33 @@
 `match` is optional; absent = the rule always applies. All text comparisons are
 case-insensitive substrings unless a `regex` is given.
 
-| Key | Applies to | Shape |
-|-----|-----------|-------|
-| `input` | prompt text (before_agent_start) or tool input JSON (tool_call) | string \| string[] \| `{contains: [...]}` \| `{regex: [...]}` \| list of these |
-| `command` | `input.command` string (bash-like tools) | same shapes as `input` |
-| `tool` | tool name (tool_call) | string \| string[] |
-| `any` | whole rule | list of sub-specs; if ANY matches, the rule matches immediately |
+| Key | S'applique à | Forme |
+|-----|-------------|-------|
+| `input` | texte du prompt (before_agent_start), JSON des arguments (tool_call, tool_result) | string \| string[] \| `{contains: [...]}` \| `{regex: [...]}` \| liste de ces formes |
+| `command` | `input.command` (outils bash-like, user_bash) | mêmes formes que `input` |
+| `tool` | nom de l'outil (tool_call, tool_result) | string \| string[] |
+| `result` | sortie texte de l'outil (tool_result) | mêmes formes que `input` |
+| `model` | modèle actif `provider/id` (tous événements) | string \| string[] — contains insensible à la casse |
+| `cwd` | chemin du projet (tous événements) | mêmes formes que `input` |
+| `sessionSize` | nombre d'entrées de session (tous événements) | nombre = minimum (>=) ; ou `{min: n, max: n}` |
+| `contextFill` | remplissage du contexte en % (tous événements) | nombre = minimum (>=) ; ou `{min, max}` |
+| `source` | origine de la saisie (input) | string \| string[] — égalité exacte : interactive \| rpc \| extension |
+| `any` | toute la règle | liste de sous-specs ; si UNE matche, la règle matche immédiatement |
 
-Semantics:
+Sémantique :
 
-- Inside one pattern object, `contains` and `regex` are OR'd; each list is
-  any-of. `{contains: [ui, ux]}` matches "ui" or "ux".
-- `regex` entries are anchored as written: use `^` for command starts
-  (`"^git push"`), and mind `--force` variants (`"^git push --force"`).
-- Example — bash guard:
+- Clés combinées = ET (toutes doivent matcher). `any` = OU gagnant immédiatement.
+- Dans un objet de motifs, `contains` et `regex` sont OU ; chaque liste est
+  any-of. `{contains: [ui, ux]}` matche "ui" ou "ux".
+- `regex` est ancré tel qu'écrit : utilisez `^` pour les débuts de commande
+  (`"^git push"`), et méfiez-vous des variantes `--force` (`"^git push --force"`).
+- `sessionSize` / `contextFill` : un nombre seul signifie « au moins ce
+  seuil » ; `{min: 5, max: 200}` borne inclusivement. Si la donnée n'est pas
+  disponible (ex. percent inconnu), la clé ne matche pas.
+- `model` : matche par sous-chaîne sur `provider/id` — `anthropic` matche
+  `anthropic/claude-sonnet-4`, `claude-sonnet-4` matche aussi.
+
+Exemple — garde bash :
 
 ```yaml
 match:
@@ -25,11 +38,28 @@ match:
     regex: ["^git push", "^git reset --hard"]
 ```
 
-- Example — OR across heterogeneous specs:
+Exemple — OR hétérogène :
 
 ```yaml
 match:
   any:
     - input: {contains: ["test"]}
     - tool: bash
+```
+
+Exemple — réaction à la sortie d'un outil :
+
+```yaml
+match:
+  tool: bash
+  command: {contains: ["pytest"]}
+  result: {contains: ["FAILED"]}
+```
+
+Exemple — seulement sur un projet et quand le contexte est chargé :
+
+```yaml
+match:
+  cwd: {contains: ["mon-projet"]}
+  contextFill: 80
 ```
