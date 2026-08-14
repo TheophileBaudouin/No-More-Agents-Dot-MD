@@ -44,6 +44,13 @@ directory when it is missing.
    then check the rule appears in `/nma`. Done when the user confirms the rule
    is listed.
 
+## Minimal context
+
+The body is the only context the agent sees — keep it minimal. Short
+sentences. State only what changes behavior. Be precise: each line names
+one concrete behavior. A line the agent would follow anyway is noise —
+cut it.
+
 ## Rules of thumb
 
 - YAML describes behavior; Markdown is the context. The body carries context
