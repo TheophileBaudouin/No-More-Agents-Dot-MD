@@ -5,6 +5,14 @@ Replace the monolithic `AGENTS.md` with tiny declarative context files
 the YAML frontmatter describes the behavior, the Markdown body is the context
 the agent actually sees — injected only when it applies.
 
+> **Documentation for humans:** [documentation/](documentation/) — a full,
+> beginner-friendly guide: [installation](documentation/installation.md),
+> [how to write rules](documentation/writing-rules.md),
+> [ready-to-copy examples](documentation/examples.md),
+> [complete reference](documentation/reference.md), and
+> [architecture](documentation/architecture.md).
+> (The skill in `skill/context-engine/` is the documentation for the LLM.)
+
 ```text
 .pi/
 ├── context/                 # behavior rules (copy into your project)
@@ -26,6 +34,31 @@ skill/context-engine/        # the skill (copy to ~/.pi/agent/skills/)
 ```
 
 ## Install
+
+### One command (recommended)
+
+The repository is a pi package: it installs the **extension** and the **skill**
+in one command, available in every project:
+
+```bash
+pi install git:github.com/TheophileBaudouin/No-More-Agents-Dot-MD
+```
+
+or with HTTPS: `pi install https://github.com/TheophileBaudouin/No-More-Agents-Dot-MD`
+
+Then copy (or adapt) the example rules into a project and restart pi there:
+
+```bash
+cp -r .pi/context <project>/.pi/context
+```
+
+You should see:
+
+```text
+[context-engine] 8 rule(s) loaded from .pi/context/
+```
+
+### Manual install
 
 1. Copy the extension into your project:
 
