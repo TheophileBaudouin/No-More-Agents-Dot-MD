@@ -1,7 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { matchRule } from "./match.ts";
-import type { Subject } from "./match.ts";
 
 test("no match spec matches everything", () => {
  assert.equal(matchRule(undefined, { text: "anything" }), true);

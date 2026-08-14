@@ -3,7 +3,6 @@
  * Frontmatter YAML = behavior (events/match/action); the Markdown body is the
  * context injected into the agent. The frontmatter is never injected.
  */
-import * as fs from "node:fs";
 import * as path from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { loadContextDir, selectInject, selectToolRules, type Rule } from "./engine.ts";
@@ -76,15 +75,24 @@ export default function (pi: ExtensionAPI) {
      pendingInject.push(`## ${r.name}\n\n${r.body}`);
      break;
     }
+    default:
+     break; // unknown action types are ignored (schema is extensible)
    }
   }
  });
 
  // Deliver pending tool-context guidance before the next LLM call.
+ // Injected as a user message: AgentMessage has no "system" role (the system
+ // prompt lives separately) — this is pi's standard context-injection shape.
  pi.on("context", async (event) => {
   if (pendingInject.length === 0) return;
   const text = pendingInject.join("\n\n");
   pendingInject = [];
-  return { messages: [...event.messages, { role: "system", content: text }] };
+  return {
+   messages: [
+    ...event.messages,
+    { role: "user" as const, content: text, timestamp: Date.now() },
+   ],
+  };
  });
 }

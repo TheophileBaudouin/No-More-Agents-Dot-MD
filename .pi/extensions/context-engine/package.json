@@ -1,0 +1,14 @@
+{
+	"name": "context-engine",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"description": "Turns .pi/context/*.md files into Pi behaviors (conditional context, tool guards).",
+	"devDependencies": {
+		"@earendil-works/pi-coding-agent": "^0.84.1",
+		"@types/node": "^24.0.0"
+	},
+	"pi": {
+		"extensions": ["./index.ts"]
+	}
+}

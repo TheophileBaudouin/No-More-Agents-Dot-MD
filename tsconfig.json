@@ -1,0 +1,7 @@
+{
+	"extends": "./.pi/extensions/context-engine/tsconfig.json",
+	"compilerOptions": {
+		"typeRoots": [".pi/extensions/context-engine/node_modules/@types"]
+	},
+	"include": [".pi/extensions/context-engine"]
+}

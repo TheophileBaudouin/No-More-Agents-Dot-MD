@@ -97,13 +97,14 @@ export function parseYamlSubset(text: string): Record<string, unknown> {
  let i = 0;
 
  function parseBlock(indent: number): unknown {
-  return toks[i].key !== undefined ? parseMap(indent) : parseList(indent);
+  return "key" in toks[i] ? parseMap(indent) : parseList(indent);
  }
 
  function parseMap(indent: number): Record<string, unknown> {
   const map: Record<string, unknown> = {};
-  while (i < toks.length && toks[i].indent === indent && toks[i].key !== undefined) {
+  while (i < toks.length && toks[i].indent === indent) {
    const tok = toks[i];
+   if (!("key" in tok)) break; // next sibling is a list item (or EOF)
    i++;
    if (tok.value === "") {
     if (i < toks.length && toks[i].indent > indent) {
@@ -120,8 +121,9 @@ export function parseYamlSubset(text: string): Record<string, unknown> {
 
  function parseList(indent: number): unknown[] {
   const list: unknown[] = [];
-  while (i < toks.length && toks[i].indent === indent && toks[i].key === undefined) {
+  while (i < toks.length && toks[i].indent === indent) {
    const tok = toks[i];
+   if ("key" in tok) break; // next sibling is a map key (or EOF)
    i++;
    if (tok.mapItemKey !== undefined) {
     const item: Record<string, unknown> = {};
@@ -131,11 +133,13 @@ export function parseYamlSubset(text: string): Record<string, unknown> {
        ? parseBlock(toks[i].indent)
        : true;
     } else {
-     item[tok.mapItemKey] = parseValue(tok.mapItemValue);
+     const mv = tok.mapItemValue;
+     if (mv === undefined) continue; // unreachable: mapItemKey/mapItemValue are co-set
+     item[tok.mapItemKey] = parseValue(mv);
     }
     list.push(item);
     // deeper `key: value` lines continue the same map item
-    if (i < toks.length && toks[i].indent > indent && toks[i].key !== undefined) {
+    if (i < toks.length && toks[i].indent > indent && "key" in toks[i]) {
      Object.assign(item, parseMap(toks[i].indent));
     }
    } else {

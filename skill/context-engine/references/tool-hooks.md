@@ -11,7 +11,8 @@ Execution guarantees (pi SDK):
 - `{ block: true, reason }` cancels the tool; add `terminate: true` to also end
   the agent turn.
 - The `context` event fires before the next LLM call; queued `inject` bodies are
-  appended there as a `system` message (drained once — one delivery per tool call).
+  appended there as a `user` message (drained once — one delivery per tool
+  call; `AgentMessage` has no `system` role, so user is the injection shape).
 
 Typical guard shape:
 

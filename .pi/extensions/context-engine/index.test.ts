@@ -5,25 +5,28 @@ import * as os from "node:os";
 import * as path from "node:path";
 import createExtension from "./index.ts";
 
-type Handler = (event: any, ctx: any) => unknown;
-type FakePi = { on: (ev: string, h: Handler) => void; handlers: Record<string, Handler> };
+type Handler = (...args: any[]) => any;
+type FakePi = {
+	on: (ev: string, h: Handler) => void;
+	handlers: Record<string, Handler>;
+};
 
 function makePi(): FakePi {
- const handlers: Record<string, Handler> = {};
- return {
-  handlers,
-  on: (ev: string, h: Handler) => void (handlers[ev] = h),
- };
+	const handlers: Record<string, Handler> = {};
+	return {
+		handlers,
+		on: (ev: string, h: Handler) => void (handlers[ev] = h),
+	};
 }
 
 function makeProject(files: Record<string, string>): string {
- const dir = fs.mkdtempSync(path.join(os.tmpdir(), "proj-"));
- for (const [rel, content] of Object.entries(files)) {
-  const abs = path.join(dir, rel);
-  fs.mkdirSync(path.dirname(abs), { recursive: true });
-  fs.writeFileSync(abs, content);
- }
- return dir;
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), "proj-"));
+	for (const [rel, content] of Object.entries(files)) {
+		const abs = path.join(dir, rel);
+		fs.mkdirSync(path.dirname(abs), { recursive: true });
+		fs.writeFileSync(abs, content);
+	}
+	return dir;
 }
 
 const UI_RULE = `---
@@ -72,102 +75,118 @@ Run the focused test file, not the whole suite.
 `;
 
 test("before_agent_start injects matched context into the system prompt", async () => {
- const pi = makePi();
- createExtension(pi as any);
- const cwd = makeProject({ ".pi/context/ui.md": UI_RULE });
- await pi.handlers["session_start"]({}, { cwd });
+	const pi = makePi();
+	createExtension(pi as any);
+	const cwd = makeProject({ ".pi/context/ui.md": UI_RULE });
+	await pi.handlers["session_start"]({}, { cwd });
 
- const res = await pi.handlers["before_agent_start"]({
-  prompt: "fix the ui layout",
-  systemPrompt: "base",
- });
- assert.match(res.systemPrompt, /# UI Conventions/);
- assert.match(res.systemPrompt, /Use existing components/);
- assert.ok(res.systemPrompt.startsWith("base"));
+	const res = await pi.handlers["before_agent_start"]({
+		prompt: "fix the ui layout",
+		systemPrompt: "base",
+	});
+	assert.match(res.systemPrompt, /# UI Conventions/);
+	assert.match(res.systemPrompt, /Use existing components/);
+	assert.ok(res.systemPrompt.startsWith("base"));
 
- // unmatched prompt → no injection
- const res2 = await pi.handlers["before_agent_start"]({
-  prompt: "bump the version",
-  systemPrompt: "base",
- });
- assert.equal(res2, undefined);
+	// unmatched prompt → no injection
+	const res2 = await pi.handlers["before_agent_start"]({
+		prompt: "bump the version",
+		systemPrompt: "base",
+	});
+	assert.equal(res2, undefined);
 
- fs.rmSync(cwd, { recursive: true, force: true });
+	fs.rmSync(cwd, { recursive: true, force: true });
 });
 
 test("once: true injects only on the first matching turn", async () => {
- const pi = makePi();
- createExtension(pi as any);
- const cwd = makeProject({ ".pi/context/ui.md": UI_RULE });
- await pi.handlers["session_start"]({}, { cwd });
+	const pi = makePi();
+	createExtension(pi as any);
+	const cwd = makeProject({ ".pi/context/ui.md": UI_RULE });
+	await pi.handlers["session_start"]({}, { cwd });
 
- await pi.handlers["before_agent_start"]({ prompt: "fix the ui", systemPrompt: "b" });
- const res2 = await pi.handlers["before_agent_start"]({ prompt: "fix the ui", systemPrompt: "b" });
- assert.equal(res2, undefined);
+	await pi.handlers["before_agent_start"]({
+		prompt: "fix the ui",
+		systemPrompt: "b",
+	});
+	const res2 = await pi.handlers["before_agent_start"]({
+		prompt: "fix the ui",
+		systemPrompt: "b",
+	});
+	assert.equal(res2, undefined);
 
- fs.rmSync(cwd, { recursive: true, force: true });
+	fs.rmSync(cwd, { recursive: true, force: true });
 });
 
 test("tool_call confirm blocks when declined, passes when approved", async () => {
- const pi = makePi();
- createExtension(pi as any);
- const cwd = makeProject({ ".pi/context/git-safety.md": GIT_GUARD });
- await pi.handlers["session_start"]({}, { cwd });
+	const pi = makePi();
+	createExtension(pi as any);
+	const cwd = makeProject({ ".pi/context/git-safety.md": GIT_GUARD });
+	await pi.handlers["session_start"]({}, { cwd });
 
- const decline = await pi.handlers["tool_call"](
-  { toolName: "bash", input: { command: "git push origin main" } },
-  { hasUI: true, ui: { confirm: async () => false } },
- );
- assert.deepEqual(decline, { block: true, reason: "Blocked by rule git-safety" });
+	const decline = await pi.handlers["tool_call"](
+		{ toolName: "bash", input: { command: "git push origin main" } },
+		{ hasUI: true, ui: { confirm: async () => false } },
+	);
+	assert.deepEqual(decline, {
+		block: true,
+		reason: "Blocked by rule git-safety",
+	});
 
- const approve = await pi.handlers["tool_call"](
-  { toolName: "bash", input: { command: "git push origin main" } },
-  { hasUI: true, ui: { confirm: async () => true } },
- );
- assert.equal(approve, undefined); // not blocked
+	const approve = await pi.handlers["tool_call"](
+		{ toolName: "bash", input: { command: "git push origin main" } },
+		{ hasUI: true, ui: { confirm: async () => true } },
+	);
+	assert.equal(approve, undefined); // not blocked
 
- fs.rmSync(cwd, { recursive: true, force: true });
+	fs.rmSync(cwd, { recursive: true, force: true });
 });
 
 test("tool_call confirm fails safe without UI", async () => {
- const pi = makePi();
- createExtension(pi as any);
- const cwd = makeProject({ ".pi/context/git-safety.md": GIT_GUARD });
- await pi.handlers["session_start"]({}, { cwd });
+	const pi = makePi();
+	createExtension(pi as any);
+	const cwd = makeProject({ ".pi/context/git-safety.md": GIT_GUARD });
+	await pi.handlers["session_start"]({}, { cwd });
 
- const res = await pi.handlers["tool_call"](
-  { toolName: "bash", input: { command: "git push origin main" } },
-  { hasUI: false },
- );
- assert.equal(res.block, true);
+	const res = await pi.handlers["tool_call"](
+		{ toolName: "bash", input: { command: "git push origin main" } },
+		{ hasUI: false },
+	);
+	assert.equal(res.block, true);
 
- fs.rmSync(cwd, { recursive: true, force: true });
+	fs.rmSync(cwd, { recursive: true, force: true });
 });
 
 test("tool_call inject queues guidance delivered at the next context event", async () => {
- const pi = makePi();
- createExtension(pi as any);
- const cwd = makeProject({ ".pi/context/test-context.md": TOOL_CONTEXT });
- await pi.handlers["session_start"]({}, { cwd });
+	const pi = makePi();
+	createExtension(pi as any);
+	const cwd = makeProject({ ".pi/context/test-context.md": TOOL_CONTEXT });
+	await pi.handlers["session_start"]({}, { cwd });
 
- await pi.handlers["tool_call"]({ toolName: "bash", input: { command: "pytest -x" } }, {});
- const res = await pi.handlers["context"]({ messages: [{ role: "user", content: "hi" }] });
- assert.equal(res.messages.length, 2);
- assert.equal(res.messages[1].role, "system");
- assert.match(res.messages[1].content, /# Testing/);
+	await pi.handlers["tool_call"](
+		{ toolName: "bash", input: { command: "pytest -x" } },
+		{},
+	);
+	const res = await pi.handlers["context"]({
+		messages: [{ role: "user", content: "hi" }],
+	});
+	assert.equal(res.messages.length, 2);
+	assert.equal(res.messages[1].role, "user");
+	assert.match(res.messages[1].content, /# Testing/);
 
- // queue is drained — next context event is untouched
- const res2 = await pi.handlers["context"]({ messages: [{ role: "user", content: "hi" }] });
- assert.equal(res2, undefined);
+	// queue is drained — next context event is untouched
+	const res2 = await pi.handlers["context"]({
+		messages: [{ role: "user", content: "hi" }],
+	});
+	assert.equal(res2, undefined);
 
- fs.rmSync(cwd, { recursive: true, force: true });
+	fs.rmSync(cwd, { recursive: true, force: true });
 });
 
 test("tool_call block hard-blocks a matched command", async () => {
- const pi = makePi();
- createExtension(pi as any);
- const cwd = makeProject({
-  ".pi/context/block.md": `---
+	const pi = makePi();
+	createExtension(pi as any);
+	const cwd = makeProject({
+		".pi/context/block.md": `---
 name: never-ls
 events: [tool_call]
 match:
@@ -178,23 +197,23 @@ action:
   message: "ls is banned"
 ---
 `,
- });
- await pi.handlers["session_start"]({}, { cwd });
+	});
+	await pi.handlers["session_start"]({}, { cwd });
 
- const res = await pi.handlers["tool_call"](
-  { toolName: "bash", input: { command: "ls -la" } },
-  { hasUI: true, ui: { confirm: async () => true } },
- );
- assert.deepEqual(res, { block: true, reason: "ls is banned" });
+	const res = await pi.handlers["tool_call"](
+		{ toolName: "bash", input: { command: "ls -la" } },
+		{ hasUI: true, ui: { confirm: async () => true } },
+	);
+	assert.deepEqual(res, { block: true, reason: "ls is banned" });
 
- fs.rmSync(cwd, { recursive: true, force: true });
+	fs.rmSync(cwd, { recursive: true, force: true });
 });
 
 test("tool_call modify patches the bash command in place", async () => {
- const pi = makePi();
- createExtension(pi as any);
- const cwd = makeProject({
-  ".pi/context/modify.md": `---
+	const pi = makePi();
+	createExtension(pi as any);
+	const cwd = makeProject({
+		".pi/context/modify.md": `---
 name: capture-stderr
 events: [tool_call]
 match:
@@ -205,16 +224,16 @@ action:
   command: {append: " 2>&1"}
 ---
 `,
- });
- await pi.handlers["session_start"]({}, { cwd });
+	});
+	await pi.handlers["session_start"]({}, { cwd });
 
- const input = { command: "node script.js" };
- const res = await pi.handlers["tool_call"](
-  { toolName: "bash", input },
-  { hasUI: true, ui: { confirm: async () => true } },
- );
- assert.equal(res, undefined); // not blocked
- assert.equal(input.command, "node script.js 2>&1");
+	const input = { command: "node script.js" };
+	const res = await pi.handlers["tool_call"](
+		{ toolName: "bash", input },
+		{ hasUI: true, ui: { confirm: async () => true } },
+	);
+	assert.equal(res, undefined); // not blocked
+	assert.equal(input.command, "node script.js 2>&1");
 
- fs.rmSync(cwd, { recursive: true, force: true });
+	fs.rmSync(cwd, { recursive: true, force: true });
 });

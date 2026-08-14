@@ -1024,11 +1024,18 @@ export default function (pi: ExtensionAPI) {
  });
 
  // Deliver pending tool-context guidance before the next LLM call.
+ // Injected as a user message: AgentMessage has no "system" role (the system
+ // prompt lives separately) — this is pi's standard context-injection shape.
  pi.on("context", async (event) => {
   if (pendingInject.length === 0) return;
   const text = pendingInject.join("\n\n");
   pendingInject = [];
-  return { messages: [...event.messages, { role: "system", content: text }] };
+  return {
+   messages: [
+    ...event.messages,
+    { role: "user" as const, content: text, timestamp: Date.now() },
+   ],
+  };
  });
 }
 ```
@@ -1355,7 +1362,8 @@ Execution guarantees (pi SDK):
 - `{ block: true, reason }` cancels the tool; add `terminate: true` to also end
   the agent turn.
 - The `context` event fires before the next LLM call; queued `inject` bodies are
-  appended there as a `system` message (drained once — one delivery per tool call).
+  appended there as a `user` message (drained once — one delivery per tool
+  call; `AgentMessage` has no `system` role, so user is the injection shape).
 
 Typical guard shape:
 
