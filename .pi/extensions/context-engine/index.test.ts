@@ -91,7 +91,7 @@ match:
   command: {regex: ["^git push", "^git reset --hard"]}
 action:
   type: confirm
-  message: "Commande Git potentiellement destructive."
+  message: "Potentially destructive git command."
 priority: high
 ---
 `;
@@ -495,7 +495,7 @@ name: no-switch
 events: [session_before_switch]
 action:
   type: block
-  message: "Sessions figées."
+  message: "Sessions frozen."
 ---
 `;
 
@@ -517,7 +517,7 @@ name: fork-check
 events: [session_before_fork]
 action:
   type: confirm
-  message: "Forker ?"
+  message: "Fork?"
 ---
 `;
 
@@ -627,7 +627,7 @@ test("nma command lists rules and reload re-reads the directory", async () => {
 	// add a rule file, reload, and list again
 	fs.writeFileSync(path.join(cwd, ".pi/context/c.md"), LIST_RULE_A.replace("rule-a", "rule-c"));
 	await pi.commands["nma"]("reload", ctx);
-	assert.match(notifyCalls[0].message, /rechargée/);
+	assert.match(notifyCalls[0].message, /reloaded/);
 	await pi.commands["nma"]("", ctx);
 	assert.match(editorCalls[1].text, /rule-c/);
 

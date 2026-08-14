@@ -4,8 +4,8 @@ import { parseYamlSubset } from "./frontmatter.ts";
 
 test("parses flat key-value pairs and inline lists", () => {
  assert.deepEqual(
-  parseYamlSubset("name: ui-context\ndescription: Conventions UI\nevents: [before_agent_start]"),
-  { name: "ui-context", description: "Conventions UI", events: ["before_agent_start"] },
+  parseYamlSubset("name: ui-context\ndescription: UI conventions\nevents: [before_agent_start]"),
+  { name: "ui-context", description: "UI conventions", events: ["before_agent_start"] },
  );
 });
 

@@ -74,12 +74,12 @@ export default function (pi: ExtensionAPI) {
 
 	function notifyInject(ctx: ExtensionContext | undefined, r: Rule) {
 		if (!ctx?.hasUI || !ctx.ui?.notify) return;
-		ctx.ui.notify(`[nma] ${r.name} : contexte injecté`, "info");
+		ctx.ui.notify(`[nma] ${r.name}: context injected`, "info");
 	}
 
 	function notifyBlock(ctx: ExtensionContext | undefined, r: Rule) {
 		if (!ctx?.hasUI || !ctx.ui?.notify) return;
-		ctx.ui.notify(`[nma] ${r.name} : bloqué`, "warning");
+		ctx.ui.notify(`[nma] ${r.name}: blocked`, "warning");
 	}
 
 	function applyTools(pi: ExtensionAPI, r: Rule) {
@@ -314,7 +314,7 @@ export default function (pi: ExtensionAPI) {
 					log(r.name, "user_bash", "block");
 					return {
 						result: {
-							output: r.action.message ?? `Bloqué par la règle ${r.name}`,
+							output: r.action.message ?? `Blocked by rule ${r.name}`,
 							exitCode: 1,
 							cancelled: false,
 							truncated: false,
@@ -323,7 +323,7 @@ export default function (pi: ExtensionAPI) {
 				}
 				case "confirm": {
 					const reason =
-						r.action.message ?? `Autoriser ${event.command}? (règle ${r.name})`;
+						r.action.message ?? `Allow ${event.command}? (rule ${r.name})`;
 					if (!ctx.hasUI) {
 						notifyBlock(ctx, r);
 						log(r.name, "user_bash", "confirm-blocked");
@@ -337,7 +337,7 @@ export default function (pi: ExtensionAPI) {
 						log(r.name, "user_bash", "confirm-blocked");
 						return {
 							result: {
-								output: `Bloqué par la règle ${r.name}`,
+								output: `Blocked by rule ${r.name}`,
 								exitCode: 1,
 								cancelled: false,
 								truncated: false,
@@ -398,8 +398,8 @@ export default function (pi: ExtensionAPI) {
 					const reason =
 						r.action.message ??
 						(ev === "session_before_switch"
-							? `Changer de session ? (règle ${r.name})`
-							: `Forker la session ? (règle ${r.name})`);
+							? `Switch session? (rule ${r.name})`
+							: `Fork session? (rule ${r.name})`);
 					if (!ctx.hasUI) {
 						notifyBlock(ctx, r);
 						log(r.name, ev, "confirm-blocked");
@@ -449,23 +449,23 @@ export default function (pi: ExtensionAPI) {
 
 	// /nma — manage rules from inside pi: list, reload, session status.
 	pi.registerCommand("nma", {
-		description: "Context Engine : /nma (liste), /nma reload, /nma status",
+		description: "Context Engine: /nma (list), /nma reload, /nma status",
 		handler: async (args, ctx) => {
 			const cmd = args.trim().split(/\s+/)[0] ?? "";
 			if (cmd === "reload") {
 				reload(ctx.cwd);
-				ctx.ui.notify(`[nma] ${rules.length} règle(s) rechargée(s)`, "info");
+				ctx.ui.notify(`[nma] ${rules.length} rule(s) reloaded`, "info");
 				return;
 			}
 			if (cmd === "status") {
 				const counts = new Map<string, number>();
 				for (const a of activity) counts.set(a.action, (counts.get(a.action) ?? 0) + 1);
 				const lines: string[] = [
-					`Règles chargées : ${rules.length}`,
-					`Injections once : ${injectedOnce.size}`,
-					`Contexte en attente : ${pendingInject.length}`,
-					`Actions (par type) : ${
-						[...counts.entries()].map(([a, n]) => `${a} ${n}`).join(", ") || "aucune"
+					`Rules loaded: ${rules.length}`,
+					`Once injections: ${injectedOnce.size}`,
+					`Pending context: ${pendingInject.length}`,
+					`Actions (by type): ${
+						[...counts.entries()].map(([a, n]) => `${a} ${n}`).join(", ") || "none"
 					}`,
 					"---",
 				];
@@ -478,7 +478,7 @@ export default function (pi: ExtensionAPI) {
 				return;
 			}
 			const lines = rules.map((r) => {
-				const m = r.match ? JSON.stringify(r.match) : "toujours";
+				const m = r.match ? JSON.stringify(r.match) : "always";
 				return `${r.name} [${r.events.join(",")}] ${r.action.type} p${r.priority} ${r.file} match=${m}`;
 			});
 			ctx.ui.editor("nma rules", lines.join("\n"));
