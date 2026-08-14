@@ -50,7 +50,7 @@ pi install git:github.com/TheophileBaudouin/No-More-Agents-Dot-MD
 Restart pi in a project. A fresh install shows:
 
 ```text
-[context-engine] 0 rule(s) loaded from .pi/context/
+[No More Agents Dot MD] 0 rule(s) loaded from .pi/context/
 ```
 
 That's normal — rules are user-created, the repository ships none. Ask the agent for your first rule, or follow [writing-rules](documentation/writing-rules.md).

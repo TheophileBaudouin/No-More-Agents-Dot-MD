@@ -115,9 +115,9 @@ Registered by the extension; usable inside pi (TUI):
 
 The engine also informs you without being asked (only when a UI is present):
 
-- a rule **injects** context → notification `[nma] <name>: context injected`;
+- a rule **injects** context → notification `[No More Agents Dot MD] <name>: context injected`;
 - a rule **blocks** (or a confirmation is declined) → notification
-  `[nma] <name>: blocked`.
+  `[No More Agents Dot MD] <name>: blocked`.
 
 ## Engine internals (map of the code)
 

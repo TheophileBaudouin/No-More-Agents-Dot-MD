@@ -22,6 +22,9 @@ import type { Subject } from "./match.ts";
 
 const CONTEXT_DIR = ".pi/context";
 
+/** Display name used in notifications, logs and transcript messages. */
+const BRAND = "No More Agents Dot MD";
+
 /** Submission form for the community registry (awesome-No-More-Agents-Dot-MD). */
 const SHARE_URL =
 	"https://theophilebaudouin.github.io/awesome-No-More-Agents-Dot-MD/submit/";
@@ -59,7 +62,7 @@ export default function (pi: ExtensionAPI) {
 		pendingInject = [];
 		if (rules.length > 0) {
 			console.log(
-				`[context-engine] ${rules.length} rule(s) loaded from .pi/context/`,
+				`[${BRAND}] ${rules.length} rule(s) loaded from .pi/context/`,
 			);
 		}
 	}
@@ -96,12 +99,12 @@ export default function (pi: ExtensionAPI) {
 
 	function notifyInject(ctx: ExtensionContext | undefined, r: Rule) {
 		if (!ctx?.hasUI || !ctx.ui?.notify) return;
-		ctx.ui.notify(`[nma] ${r.name}: context injected`, "info");
+		ctx.ui.notify(`[${BRAND}] ${r.name}: context injected`, "info");
 	}
 
 	function notifyBlock(ctx: ExtensionContext | undefined, r: Rule) {
 		if (!ctx?.hasUI || !ctx.ui?.notify) return;
-		ctx.ui.notify(`[nma] ${r.name}: blocked`, "warning");
+		ctx.ui.notify(`[${BRAND}] ${r.name}: blocked`, "warning");
 	}
 
 	function applyTools(pi: ExtensionAPI, r: Rule) {
@@ -496,14 +499,15 @@ export default function (pi: ExtensionAPI) {
 				try {
 					reload(ctx.cwd);
 					if (ctx.hasUI) {
-						ctx.ui.notify(`[nma] ${rules.length} rule(s) reloaded`, "info");
+						ctx.ui.notify(`[${BRAND}] ${rules.length} rule(s) reloaded`, "info");
 					} else {
-						console.log(`[nma] ${rules.length} rule(s) reloaded`);
+						console.log(`[${BRAND}] ${rules.length} rule(s) reloaded`);
 					}
 				} catch (err) {
 					const msg = err instanceof Error ? err.message : String(err);
-					if (ctx.hasUI) ctx.ui.notify(`[nma] reload failed: ${msg}`, "error");
-					else console.error(`[nma] reload failed: ${msg}`);
+					if (ctx.hasUI)
+						ctx.ui.notify(`[${BRAND}] reload failed: ${msg}`, "error");
+					else console.error(`[${BRAND}] reload failed: ${msg}`);
 				}
 				return;
 			}
@@ -511,7 +515,7 @@ export default function (pi: ExtensionAPI) {
 				openBrowser(SHARE_URL);
 				copyToClipboard(SHARE_URL);
 				pi.sendMessage({
-					customType: "nma",
+					customType: BRAND,
 					content: `**Share a context file**\n\nYour browser should open the submission form. If not, open this URL — it is already copied to your clipboard:\n\n${SHARE_URL}`,
 					display: true,
 				});
@@ -539,7 +543,7 @@ export default function (pi: ExtensionAPI) {
 						),
 				];
 				pi.sendMessage({
-					customType: "nma",
+					customType: BRAND,
 					content: lines.join("\n"),
 					display: true,
 				});
@@ -550,7 +554,7 @@ export default function (pi: ExtensionAPI) {
 				return `- **${r.name}** [${r.events.join(",")}] ${r.action.type} p${r.priority} — ${r.file} (match: ${m})`;
 			});
 			pi.sendMessage({
-				customType: "nma",
+				customType: BRAND,
 				content:
 					lines.length > 0
 						? `**Loaded rules**\n\n${lines.join("\n")}`

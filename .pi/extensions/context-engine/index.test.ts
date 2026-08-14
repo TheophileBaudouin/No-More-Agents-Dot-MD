@@ -656,7 +656,7 @@ test("nma command lists rules and reload re-reads the directory", async () => {
 	assert.ok(pi.commands["nma"], "nma command registered");
 
 	await pi.commands["nma"].handler("", ctx);
-	assert.equal(sent[0].customType, "nma");
+	assert.equal(sent[0].customType, "No More Agents Dot MD");
 	assert.match(sent[0].content, /rule-a/);
 	assert.match(sent[0].content, /rule-b/);
 
@@ -705,7 +705,7 @@ test("nma share shows the submission form URL and autocompletes all parameters",
 	);
 
 	await nma.handler("share", ctx);
-	assert.equal(sent[0].customType, "nma");
+	assert.equal(sent[0].customType, "No More Agents Dot MD");
 	assert.match(sent[0].content, /awesome-No-More-Agents-Dot-MD\/submit/);
 
 	fs.rmSync(cwd, { recursive: true, force: true });
@@ -726,7 +726,7 @@ test("nma status shows journal entries", async () => {
 
 	await pi.handlers["input"]({ text: "hello", source: "interactive" }, ctx);
 	await pi.commands["nma"].handler("status", ctx);
-	assert.equal(sent[0].customType, "nma");
+	assert.equal(sent[0].customType, "No More Agents Dot MD");
 	assert.match(sent[0].content, /loud-rule/);
 	assert.match(sent[0].content, /notify/);
 

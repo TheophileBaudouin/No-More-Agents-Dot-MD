@@ -29,8 +29,8 @@
 ## Automatic notifications
 
 Besides the `notify` action, when a rule **injects** or **blocks** (or a
-confirm is declined), the extension shows `[nma] <name>: context injected` /
-`[nma] <name>: blocked` when pi has a UI (`ctx.hasUI`). Without a UI nothing
+confirm is declined), the extension shows `[No More Agents Dot MD] <name>: context injected` /
+`[No More Agents Dot MD] <name>: blocked` when pi has a UI (`ctx.hasUI`). Without a UI nothing
 is shown — and `confirm` blocks fail-safe.
 
 ## Event × action matrix

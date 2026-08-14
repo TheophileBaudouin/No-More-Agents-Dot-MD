@@ -125,7 +125,7 @@ export function loadContextDir(dir: string): Rule[] {
    const rule = parseContextFile(fs.readFileSync(path.join(dir, f), "utf8"), f);
    if (rule) rules.push(rule);
   } catch (e) {
-   console.error(`[context-engine] ${f}: ${(e as Error).message}`);
+   console.error(`[No More Agents Dot MD] ${f}: ${(e as Error).message}`);
   }
  }
  return sortRules(rules);

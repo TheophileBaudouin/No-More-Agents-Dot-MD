@@ -59,7 +59,7 @@ cp -r <repo>/skill/context-engine ~/.pi/agent/skills/
 Start pi in the project. You should see the engine load your rules:
 
 ```text
-[context-engine] 0 rule(s) loaded from .pi/context/
+[No More Agents Dot MD] 0 rule(s) loaded from .pi/context/
 ```
 
 `0 rule(s)` is normal on a fresh install: the repository ships no rules, and

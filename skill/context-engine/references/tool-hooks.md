@@ -99,6 +99,6 @@ priority: high
 ## Notifications
 
 When a rule injects or blocks (or a confirm is declined), a
-`[nma] <name>: context injected` / `[nma] <name>: blocked` notification is
+`[No More Agents Dot MD] <name>: context injected` / `[No More Agents Dot MD] <name>: blocked` notification is
 shown when pi has a UI. The `notify` action allows a custom message
 (`level: info | warning | error`).
