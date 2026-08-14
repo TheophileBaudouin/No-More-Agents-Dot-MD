@@ -7,6 +7,18 @@ export type Subject = {
  tool?: string;
  /** String value of `input.command`, set for bash-like tool calls. */
  command?: string;
+ /** Tool output text, set for tool_result subjects. */
+ result?: string;
+ /** Active model as "provider/id", set when ctx.model is available. */
+ model?: string;
+ /** Working directory, set for session-bound events. */
+ cwd?: string;
+ /** Number of session entries, set for session-bound events. */
+ sessionSize?: number;
+ /** Context usage percent 0-100, set when ctx.getContextUsage() is available. */
+ contextFill?: number;
+ /** Input source, set for input subjects: interactive|rpc|extension. */
+ source?: string;
 };
 
 export type MatchSpec = Record<string, unknown>;
@@ -39,6 +51,22 @@ function matchPatterns(p: unknown, text: string): boolean {
  );
 }
 
+/**
+ * Numeric threshold matching: a bare number means "value >= n";
+ * {min, max} means inclusive bounds. Missing value never matches.
+ */
+function matchCount(spec: unknown, value: number | undefined): boolean {
+ if (value === undefined) return false;
+ if (typeof spec === "number") return value >= spec;
+ if (spec && typeof spec === "object") {
+  const { min, max } = spec as Record<string, unknown>;
+  if (typeof min === "number" && value < min) return false;
+  if (typeof max === "number" && value > max) return false;
+  return true;
+ }
+ return false;
+}
+
 export function matchRule(m: MatchSpec | undefined, s: Subject): boolean {
  if (!m) return true;
 
@@ -48,7 +76,8 @@ export function matchRule(m: MatchSpec | undefined, s: Subject): boolean {
    return true;
   }
   // none of the sub-specs matched; only remaining keys can still match
-  if (m.tool === undefined && m.input === undefined && m.command === undefined) {
+  // (covers v1 + v2 keys: any other key present means the rule can still match)
+  if (Object.keys(m).filter((k) => k !== "any").length === 0) {
    return false;
   }
  }
@@ -59,5 +88,21 @@ export function matchRule(m: MatchSpec | undefined, s: Subject): boolean {
  }
  if (m.input !== undefined && !matchPatterns(m.input, s.text)) return false;
  if (m.command !== undefined && !matchPatterns(m.command, s.command ?? "")) return false;
+ if (m.model !== undefined) {
+  const targets = Array.isArray(m.model) ? m.model.map(String) : [String(m.model)];
+  if (!s.model || !targets.some((t) => s.model!.toLowerCase().includes(t.toLowerCase()))) {
+   return false;
+  }
+ }
+ if (m.cwd !== undefined) {
+  if (s.cwd === undefined || !matchPatterns(m.cwd, s.cwd)) return false;
+ }
+ if (m.sessionSize !== undefined && !matchCount(m.sessionSize, s.sessionSize)) return false;
+ if (m.contextFill !== undefined && !matchCount(m.contextFill, s.contextFill)) return false;
+ if (m.result !== undefined && !matchPatterns(m.result, s.result ?? "")) return false;
+ if (m.source !== undefined) {
+  const targets = Array.isArray(m.source) ? m.source.map(String) : [String(m.source)];
+  if (!s.source || !targets.includes(s.source)) return false;
+ }
  return true;
 }
