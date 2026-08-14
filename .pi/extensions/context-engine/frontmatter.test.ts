@@ -3,65 +3,78 @@ import assert from "node:assert/strict";
 import { parseYamlSubset } from "./frontmatter.ts";
 
 test("parses flat key-value pairs and inline lists", () => {
- assert.deepEqual(
-  parseYamlSubset("name: ui-context\ndescription: UI conventions\nevents: [before_agent_start]"),
-  { name: "ui-context", description: "UI conventions", events: ["before_agent_start"] },
- );
+	assert.deepEqual(
+		parseYamlSubset(
+			"name: ui-context\ndescription: UI conventions\nevents: [before_agent_start]",
+		),
+		{
+			name: "ui-context",
+			description: "UI conventions",
+			events: ["before_agent_start"],
+		},
+	);
 });
 
 test("parses nested maps with block lists", () => {
- const out = parseYamlSubset(`match:
+	const out = parseYamlSubset(`match:
   tool: bash
   command:
     regex:
       - "^git push"
       - "^git reset --hard"`);
- assert.deepEqual(out, {
-  match: { tool: "bash", command: { regex: ["^git push", "^git reset --hard"] } },
- });
+	assert.deepEqual(out, {
+		match: {
+			tool: "bash",
+			command: { regex: ["^git push", "^git reset --hard"] },
+		},
+	});
 });
 
 test("parses a list of maps (match.any)", () => {
- const out = parseYamlSubset(`match:
+	const out = parseYamlSubset(`match:
   any:
     - input:
         contains: [test]
     - tool: bash`);
- assert.deepEqual(out, {
-  match: { any: [{ input: { contains: ["test"] } }, { tool: "bash" }] },
- });
+	assert.deepEqual(out, {
+		match: { any: [{ input: { contains: ["test"] } }, { tool: "bash" }] },
+	});
 });
 
 test("parses inline maps", () => {
- assert.deepEqual(parseYamlSubset("match:\n  input: {contains: [ui, ux]}"), {
-  match: { input: { contains: ["ui", "ux"] } },
- });
+	assert.deepEqual(parseYamlSubset("match:\n  input: {contains: [ui, ux]}"), {
+		match: { input: { contains: ["ui", "ux"] } },
+	});
 });
 
 test("parses booleans, quoted strings, bare flags", () => {
- assert.deepEqual(
-  parseYamlSubset('once: true\npriority: normal\nmessage: "git push"\nnotes: '),
-  { once: true, priority: "normal", message: "git push", notes: true },
- );
+	assert.deepEqual(
+		parseYamlSubset(
+			'once: true\npriority: normal\nmessage: "git push"\nnotes: ',
+		),
+		{ once: true, priority: "normal", message: "git push", notes: true },
+	);
 });
 
 test("comments and empty lines are ignored", () => {
- assert.deepEqual(parseYamlSubset("# header comment\n\nname: x\n"), { name: "x" });
+	assert.deepEqual(parseYamlSubset("# header comment\n\nname: x\n"), {
+		name: "x",
+	});
 });
 
 test("strips inline comments after values, but not inside brackets/quotes", () => {
- assert.deepEqual(
-  parseYamlSubset(
-   'events: [tool_call]  # or any event\nmessage: "a # b" # note\ncommand: {regex: ["^#x"]} # c',
-  ),
-  { events: ["tool_call"], message: "a # b", command: { regex: ["^#x"] } },
- );
+	assert.deepEqual(
+		parseYamlSubset(
+			'events: [tool_call]  # or any event\nmessage: "a # b" # note\ncommand: {regex: ["^#x"]} # c',
+		),
+		{ events: ["tool_call"], message: "a # b", command: { regex: ["^#x"] } },
+	);
 });
 
 test("rejects lines without a colon", () => {
- assert.throws(() => parseYamlSubset("this line has no colon"));
+	assert.throws(() => parseYamlSubset("this line has no colon"));
 });
 
 test("returns empty object for empty input", () => {
- assert.deepEqual(parseYamlSubset(""), {});
+	assert.deepEqual(parseYamlSubset(""), {});
 });
