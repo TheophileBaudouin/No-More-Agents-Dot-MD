@@ -189,3 +189,32 @@ action:
 
  fs.rmSync(cwd, { recursive: true, force: true });
 });
+
+test("tool_call modify patches the bash command in place", async () => {
+ const pi = makePi();
+ createExtension(pi as any);
+ const cwd = makeProject({
+  ".pi/context/modify.md": `---
+name: capture-stderr
+events: [tool_call]
+match:
+  tool: bash
+  command: {contains: ["node"]}
+action:
+  type: modify
+  command: {append: " 2>&1"}
+---
+`,
+ });
+ await pi.handlers["session_start"]({}, { cwd });
+
+ const input = { command: "node script.js" };
+ const res = await pi.handlers["tool_call"](
+  { toolName: "bash", input },
+  { hasUI: true, ui: { confirm: async () => true } },
+ );
+ assert.equal(res, undefined); // not blocked
+ assert.equal(input.command, "node script.js 2>&1");
+
+ fs.rmSync(cwd, { recursive: true, force: true });
+});
