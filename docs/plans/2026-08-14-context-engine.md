@@ -470,6 +470,10 @@ export function matchRule(m: MatchSpec | undefined, s: Subject): boolean {
   if (m.any.some((sub) => sub && typeof sub === "object" && matchRule(sub as MatchSpec, s))) {
    return true;
   }
+  // none of the sub-specs matched; only remaining keys can still match
+  if (m.tool === undefined && m.input === undefined && m.command === undefined) {
+   return false;
+  }
  }
 
  if (m.tool !== undefined) {
