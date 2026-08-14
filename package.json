@@ -1,8 +1,15 @@
 {
   "name": "no-more-agents-dot-md",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "No More Agents Dot MD: turn .pi/context/*.md files into declarative behavior rules (conditional context injection, tool guards, confirmations, input transforms, notifications) managed with the /nma command.",
-  "keywords": ["pi-package", "pi", "extension", "skill", "context", "hooks"],
+  "keywords": [
+    "pi-package",
+    "pi",
+    "extension",
+    "skill",
+    "context",
+    "hooks"
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -13,8 +20,12 @@
     "@earendil-works/pi-coding-agent": "*"
   },
   "pi": {
-    "extensions": [".pi/extensions/context-engine"],
-    "skills": ["skill/context-engine"],
+    "extensions": [
+      ".pi/extensions/context-engine"
+    ],
+    "skills": [
+      "skill/context-engine"
+    ],
     "image": "https://raw.githubusercontent.com/TheophileBaudouin/No-More-Agents-Dot-MD/main/assets/image.png"
   }
 }
