@@ -1,21 +1,35 @@
 # No More Agents Dot MD
 
-Replace the monolithic `AGENTS.md` with tiny declarative context files
-(`.pi/context/*.md`) driven by a Pi extension. Each file is a micro-context:
-the YAML frontmatter describes the behavior, the Markdown body is the context
-the agent actually sees — injected only when it applies.
+**Context at the right moment — not always.**
 
-> **Documentation for humans:** [documentation/](documentation/) — a full,
-> beginner-friendly guide: [installation](documentation/installation.md),
-> [how to write rules](documentation/writing-rules.md),
-> [ready-to-copy examples](documentation/examples.md),
-> [complete reference](documentation/reference.md), and
-> [architecture](documentation/architecture.md).
-> (The skill in `skill/context-engine/` is the documentation for the LLM.)
+No More Agents Dot MD replaces the monolithic `AGENTS.md` with tiny,
+declarative context files (`.pi/context/*.md`) driven by a Pi extension.
+Each file is a micro-context: the YAML frontmatter describes *when* a rule
+applies and *what* it does; the Markdown body is the context the agent
+actually sees — injected only when it's relevant.
+
+<img src="assets/image.png" alt="No More Agents Dot MD" width="700"/>
+
+## The idea
+
+This extension was born from [a video by Matt Pocock](https://youtu.be/9tmsq-Gvx6g?si=J_1MlTzlymxfOYd9) about the `/init` command. Its point: `/init` doesn't do magic — it just writes rules into an `AGENTS.md` file. Those rules then stay in the context **constantly**, even when they're useless for the task at hand.
+
+The alternative in the video: **hooks** — instructions that fire at the right moment (before a tool call, after a result, when the user types…). Claude Code has them natively, and Pi extensions already exist to create hook-compatible files.
+
+But stopping there felt like a shame: you'd only be able to produce files compatible with Claude Code — and never use the full power of the Pi SDK.
+
+**No More Agents Dot MD goes all the way.** It is a native Pi extension built on 100% of the Pi SDK, so your context is managed 100% by Pi:
+
+- instructions arrive **at the right moment**, injected only when they apply;
+- the agent sees **cleaner context** — no permanent noise in every prompt;
+- rules can go further than injecting text: **block an action**, ask for a **confirmation**, transform an input, toggle tools;
+- and you stay in control: write the rules by hand, or ask the agent — the built-in skill writes exactly the context file you need.
+
+## How it works
 
 ```text
 .pi/
-├── context/                 # user-created — your behavior rules (see documentation/)
+├── context/                 # user-created — your behavior rules
 └── extensions/
     └── context-engine/      # the extension (installed by pi)
         ├── index.ts         #   event wiring + /nma command
@@ -26,15 +40,18 @@ skill/context-engine/        # the skill (installed by pi)
 ```
 
 `.pi/context/` is **yours**: the repository ships no rules. Create it with
-`mkdir -p .pi/context` — or ask the agent for a rule; the `context-engine`
-skill creates the directory automatically.
+`mkdir -p .pi/context` — or ask the agent for a rule, and the skill creates
+the directory automatically.
 
 ## Install
 
-### One command (recommended)
+### npm (recommended)
 
-The repository is a pi package: it installs the **extension** and the **skill**
-in one command, available in every project:
+```bash
+pi install npm:no-more-agents-dot-md
+```
+
+### git
 
 ```bash
 pi install git:github.com/TheophileBaudouin/No-More-Agents-Dot-MD
@@ -42,62 +59,40 @@ pi install git:github.com/TheophileBaudouin/No-More-Agents-Dot-MD
 
 or with HTTPS: `pi install https://github.com/TheophileBaudouin/No-More-Agents-Dot-MD`
 
-Then restart pi in a project. A fresh install shows:
+Restart pi in a project. A fresh install shows:
 
 ```text
 [context-engine] 0 rule(s) loaded from .pi/context/
 ```
 
 That is normal: rules are user-created, the repository ships none. Ask the
-agent for your first rule ("add a context rule for X") — the `context-engine`
-skill creates `.pi/context/` automatically — or follow
-[writing-rules](documentation/writing-rules.md).
-
-### Manual install
-
-1. Copy the extension into your project:
-
-   ```bash
-   cp -r .pi/extensions/context-engine <project>/.pi/extensions/
-   ```
-
-2. Create the rules directory in your project:
-
-   ```bash
-   mkdir -p .pi/context
-   ```
-
-   (Or skip it: the `context-engine` skill creates it when you ask the agent
-   for a rule.)
-
-3. Install the skill globally:
-
-   ```bash
-   cp -r skill/context-engine ~/.pi/agent/skills/
-   ```
-
-4. Restart pi in the project. You should see:
-
-   ```text
-   [context-engine] 0 rule(s) loaded from .pi/context/
-   ```
-
-   `0 rule(s)` is normal — the count goes up as you write rules.
+agent for your first rule — the skill creates `.pi/context/` automatically —
+or follow [writing-rules](documentation/writing-rules.md).
 
 ## Write a rule
 
 Rules are user-created — nothing ships in `.pi/context/`. Ask the agent
-("add a context rule for X"): the `context-engine` skill creates `.pi/context/`
-if missing, picks the closest template from its `templates/`, and writes the
-rule. Or write one by hand following [writing-rules](documentation/writing-rules.md).
+("add a context rule for X"): the skill picks the closest template from its
+`templates/` and writes the rule. Or write one by hand:
+
+```yaml
+---
+name: git-safety
+description: Confirm before destructive git commands
+events: [tool_call]
+match:
+  tool: bash
+  command:
+    regex: ["^git push", "^git reset --hard"]
+action:
+  type: confirm
+  message: "Potentially destructive git command."
+priority: high
+---
+```
+
 Reload with `/nma reload` (no restart needed). Full schema in
 `skill/context-engine/references/schema.md`.
-
-## Manage rules with /nma
-
-- `/nma` — list the loaded rules (name, events, action, priority, file).
-- `/nma reload` — reload `.pi/context/` without restarting pi.
-- `/nma status` — what fired this session (injections, blocks, journal).
 
 ## What a rule can do
 
@@ -120,6 +115,17 @@ Actions: `inject` (once per session), `confirm` (fail-safe without UI),
 tools), `notify` (visual feedback), `transform` (rewrite input), `handled`
 (answer without the LLM), `annotate` (append to a tool result).
 
+## Manage rules with /nma
+
+- `/nma` — list the loaded rules (name, events, action, priority, file).
+- `/nma reload` — reload `.pi/context/` without restarting pi.
+- `/nma status` — what fired this session (injections, blocks, journal).
+
+## Documentation
+
+- [documentation/](documentation/) — the human guide: [installation](documentation/installation.md), [writing rules](documentation/writing-rules.md), [examples](documentation/examples.md), [reference](documentation/reference.md), [architecture](documentation/architecture.md).
+- The skill in `skill/context-engine/` is the documentation for the LLM.
+
 ## Verify
 
 With a few rules of your own (e.g. from the [examples](documentation/examples.md)):
@@ -139,9 +145,6 @@ cd .pi/extensions/context-engine && node --test "*.test.ts"
 
 Zero npm dependencies; runs on Node ≥ 22.6 (native TS type-stripping).
 
-## Roadmap
+## License
 
-- File watching (reload rules on change instead of `/nma reload`).
-- `position: message` injection (a real injected message, not system prompt).
-- A `context_rules` tool the LLM can call to discover active rules.
-- A `git` match dimension (repo state — needs `exec`, breaks engine purity).
+[MIT](LICENSE)
