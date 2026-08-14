@@ -3,6 +3,28 @@
 A rule is a single Markdown file in `.pi/context/` (one file per topic). The
 engine reads all of them at session start, and re-reads them on `/nma reload`.
 
+## Where rules live: the `.pi/context/` directory
+
+Rules live in `.pi/context/` at the **root of your project** — one file per
+rule, one rule per topic:
+
+```text
+<your-project>/
+└── .pi/
+    └── context/
+        ├── ui.md
+        ├── git-safety.md
+        └── …any name you like
+```
+
+The directory is **yours**: the engine ships without it, so nothing is
+pre-configured. A fresh install simply loads zero rules — the startup message
+`0 rule(s) loaded from .pi/context/` is normal until you write some.
+
+To create it, run `mkdir -p .pi/context` — or simply ask the agent for a rule
+("add a context rule for X"): the `context-engine` skill creates the directory
+automatically before writing any rule file.
+
 ## The anatomy of a rule file
 
 ```markdown
@@ -94,7 +116,7 @@ match:
     regex: ["^git push", "^git reset --hard", "^git clean -f"]
 action:
   type: confirm
-  message: "Commande Git potentiellement destructive."
+  message: "Potentially destructive git command."
 priority: high
 ---
 

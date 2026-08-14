@@ -1,8 +1,10 @@
 # Examples — ready-to-copy recipes
 
 Every recipe below is a complete `.pi/context/<name>.md` file. Copy, adapt,
-save, then `/nma reload`. The examples shipped in this repository's
-`.pi/context/` are live versions of these.
+save, then `/nma reload`. The repository ships **no** rules: `.pi/context/` is
+entirely yours — create it with `mkdir -p .pi/context` (or ask the agent; the
+`context-engine` skill creates it automatically), then add the rules that fit
+your project.
 
 ---
 
@@ -24,8 +26,8 @@ priority: normal
 
 # UI Conventions
 
-- Use the existing components in `src/lib/components/` before writing new ones.
-- French UI strings, English code identifiers.
+- Reuse existing components in `src/lib/components/` before writing new ones.
+- Use design tokens (colors, spacing, typography) — no hard-coded values.
 ```
 
 ## 2. Git safety (confirm)
@@ -44,7 +46,7 @@ match:
     regex: ["^git push", "^git reset --hard", "^git clean -f", "^git rebase -i"]
 action:
   type: confirm
-  message: "Commande Git potentiellement destructive."
+  message: "Potentially destructive git command."
 priority: high
 ---
 

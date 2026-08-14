@@ -15,23 +15,19 @@ the agent actually sees — injected only when it applies.
 
 ```text
 .pi/
-├── context/                 # behavior rules (copy into your project)
-│   ├── ui.md                #   conditional context on UI/UX prompts
-│   ├── git-safety.md        #   confirm destructive git commands
-│   ├── test-context.md      #   testing conventions after a test run
-│   ├── input.md             #   rewrite a shorthand prompt (input transform)
-│   ├── tool-result.md       #   annotate test failures (tool_result)
-│   ├── tools.md             #   example: enable a tool by topic (tools)
-│   ├── session-guard.md     #   confirm before forking the session
-│   └── notify.md            #   visible notification when a rule applies
+├── context/                 # user-created — your behavior rules (see documentation/)
 └── extensions/
-    └── context-engine/      # the extension (copy into your project)
+    └── context-engine/      # the extension (installed by pi)
         ├── index.ts         #   event wiring + /nma command
         ├── engine.ts        #   rule model + loader + validation
         ├── match.ts         #   declarative matcher
         └── frontmatter.ts   #   YAML-subset parser
-skill/context-engine/        # the skill (copy to ~/.pi/agent/skills/)
+skill/context-engine/        # the skill (installed by pi)
 ```
+
+`.pi/context/` is **yours**: the repository ships no rules. Create it with
+`mkdir -p .pi/context` — or ask the agent for a rule; the `context-engine`
+skill creates the directory automatically.
 
 ## Install
 
@@ -46,17 +42,16 @@ pi install git:github.com/TheophileBaudouin/No-More-Agents-Dot-MD
 
 or with HTTPS: `pi install https://github.com/TheophileBaudouin/No-More-Agents-Dot-MD`
 
-Then copy (or adapt) the example rules into a project and restart pi there:
-
-```bash
-cp -r .pi/context <project>/.pi/context
-```
-
-You should see:
+Then restart pi in a project. A fresh install shows:
 
 ```text
-[context-engine] 8 rule(s) loaded from .pi/context/
+[context-engine] 0 rule(s) loaded from .pi/context/
 ```
+
+That is normal: rules are user-created, the repository ships none. Ask the
+agent for your first rule ("add a context rule for X") — the `context-engine`
+skill creates `.pi/context/` automatically — or follow
+[writing-rules](documentation/writing-rules.md).
 
 ### Manual install
 
@@ -66,11 +61,14 @@ You should see:
    cp -r .pi/extensions/context-engine <project>/.pi/extensions/
    ```
 
-2. Copy (or adapt) the example rules:
+2. Create the rules directory in your project:
 
    ```bash
-   cp -r .pi/context <project>/.pi/context
+   mkdir -p .pi/context
    ```
+
+   (Or skip it: the `context-engine` skill creates it when you ask the agent
+   for a rule.)
 
 3. Install the skill globally:
 
@@ -81,14 +79,19 @@ You should see:
 4. Restart pi in the project. You should see:
 
    ```text
-   [context-engine] 8 rule(s) loaded from .pi/context/
+   [context-engine] 0 rule(s) loaded from .pi/context/
    ```
+
+   `0 rule(s)` is normal — the count goes up as you write rules.
 
 ## Write a rule
 
-Copy the closest template from `skill/context-engine/templates/` into
-`.pi/context/<name>.md`, fill it in, then reload with `/nma reload` (no
-restart needed). Full schema in `skill/context-engine/references/schema.md`.
+Rules are user-created — nothing ships in `.pi/context/`. Ask the agent
+("add a context rule for X"): the `context-engine` skill creates `.pi/context/`
+if missing, picks the closest template from its `templates/`, and writes the
+rule. Or write one by hand following [writing-rules](documentation/writing-rules.md).
+Reload with `/nma reload` (no restart needed). Full schema in
+`skill/context-engine/references/schema.md`.
 
 ## Manage rules with /nma
 
@@ -118,6 +121,8 @@ tools), `notify` (visual feedback), `transform` (rewrite input), `handled`
 (answer without the LLM), `annotate` (append to a tool result).
 
 ## Verify
+
+With a few rules of your own (e.g. from the [examples](documentation/examples.md)):
 
 - "improve the ui" → the UI conventions appear in the system prompt.
 - `git push` → pi asks for confirmation, and a warning notification appears.

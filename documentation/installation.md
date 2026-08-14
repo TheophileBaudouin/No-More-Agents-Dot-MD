@@ -31,18 +31,16 @@ pi install https://github.com/TheophileBaudouin/No-More-Agents-Dot-MD
 ### What the install does NOT do
 
 It installs the *engine* and the *skill*, but **not** the rules themselves.
-Rules are project-specific by nature. Two ways to get them:
+Rules are project-specific by nature. The repository ships no rules at all:
+`.pi/context/` is entirely yours. Two ways to get started:
 
 1. **Write your own** — copy a template, fill it in. Ask your agent
-   "add a context rule for X" — the skill makes this reliable. Start with
+   "add a context rule for X" — the skill creates `.pi/context/` when missing
+   and makes writing rules reliable. Start with
    [Writing rules](writing-rules.md).
-2. **Copy the examples** — the repository ships ready-made rules you can
-   adapt (see [Examples](examples.md)):
-
-   ```bash
-   # inside the target project (from a clone of this repo)
-   cp -r .pi/context <your-project>/.pi/context
-   ```
+2. **Copy a recipe** — every recipe in [Examples](examples.md) is a complete
+   rule file: create `.pi/context/` (`mkdir -p .pi/context`), copy the recipe
+   into `.pi/context/<name>.md`, and adapt it.
 
 ## Manual install (no package manager)
 
@@ -61,11 +59,13 @@ cp -r <repo>/skill/context-engine ~/.pi/agent/skills/
 Start pi in the project. You should see the engine load your rules:
 
 ```text
-[context-engine] 8 rule(s) loaded from .pi/context/
+[context-engine] 0 rule(s) loaded from .pi/context/
 ```
 
-No message = no `.pi/context/` directory yet, or zero rules. The engine does
-not complain — it just waits. That's fine: rules are optional.
+`0 rule(s)` is normal on a fresh install: the repository ships no rules, and
+`.pi/context/` does not exist yet. The count goes up as you write rules (see
+[Writing rules](writing-rules.md)). The engine does not complain — it just
+waits. That's fine: rules are optional.
 
 Then try the built-in `/nma` command inside pi:
 
@@ -78,6 +78,7 @@ Then try the built-in `/nma` command inside pi:
 ## Your first rule, in 60 seconds
 
 1. Create the folder: `mkdir -p .pi/context`
+   (or skip it — the agent creates it when you ask for a rule)
 2. Create `.pi/context/hello.md`:
 
    ```markdown

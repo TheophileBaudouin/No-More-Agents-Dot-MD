@@ -40,8 +40,8 @@ priority: normal
 
 # UI Conventions
 
-- Use the existing components in `src/lib/components/` before writing new ones.
-- French UI strings, English code identifiers.
+- Reuse existing components in `src/lib/components/` before writing new ones.
+- Use design tokens (colors, spacing, typography) — no hard-coded values.
 ```
 
 That's it. The engine watches what happens, and when a prompt mentions "ui" or
