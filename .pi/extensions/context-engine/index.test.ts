@@ -8,41 +8,60 @@ import createExtension from "./index.ts";
 type Handler = (...args: any[]) => any;
 type FakePi = {
 	on: (ev: string, h: Handler) => void;
-	registerCommand: (name: string, opts: { handler: Handler }) => void;
+	registerCommand: (
+		name: string,
+		opts: { handler: Handler; getArgumentCompletions?: (p: string) => unknown },
+	) => void;
 	handlers: Record<string, Handler>;
-	commands: Record<string, Handler>;
+	commands: Record<
+		string,
+		{ handler: Handler; getArgumentCompletions?: (p: string) => unknown }
+	>;
 	activeTools: string[];
 	getActiveTools: () => string[];
 	setActiveTools: (names: string[]) => void;
+	sendMessage: (msg: {
+		customType: string;
+		content: unknown;
+		display: boolean;
+	}) => void;
 };
 
 function makePi(): FakePi {
 	const handlers: Record<string, Handler> = {};
-	const commands: Record<string, Handler> = {};
+	const commands: Record<
+		string,
+		{ handler: Handler; getArgumentCompletions?: (p: string) => unknown }
+	> = {};
 	const activeTools: string[] = [];
 	return {
 		handlers,
 		commands,
 		activeTools,
 		on: (ev: string, h: Handler) => void (handlers[ev] = h),
-		registerCommand: (name: string, opts: { handler: Handler }) =>
-			void (commands[name] = opts.handler),
+		registerCommand: (
+			name: string,
+			opts: {
+				handler: Handler;
+				getArgumentCompletions?: (p: string) => unknown;
+			},
+		) => void (commands[name] = opts),
 		getActiveTools: () => [...activeTools],
 		setActiveTools: (names: string[]) => {
 			activeTools.length = 0;
 			activeTools.push(...names);
 		},
+		sendMessage: () => undefined,
 	};
 }
 
-/** Rich fake ctx: captures notify/editor calls. */
+/** Rich fake ctx: captures notify calls. */
 function makeCtx(overrides: Record<string, unknown> = {}) {
 	const notifyCalls: Array<{ message: string; level?: string }> = [];
-	const editorCalls: Array<{ title: string; text: string }> = [];
 	const ui = {
 		confirm: async () => true,
-		notify: (message: string, level?: string) => void notifyCalls.push({ message, level }),
-		editor: async (title: string, text: string) => void editorCalls.push({ title, text }),
+		notify: (message: string, level?: string) =>
+			void notifyCalls.push({ message, level }),
 		...(overrides.ui as Record<string, unknown> | undefined),
 	};
 	const ctx: Record<string, unknown> = {
@@ -54,7 +73,7 @@ function makeCtx(overrides: Record<string, unknown> = {}) {
 		...overrides,
 	};
 	ctx.ui = ui; // merged ui wins over overrides.ui
-	return { ctx, notifyCalls, editorCalls };
+	return { ctx, notifyCalls };
 }
 
 function makeProject(files: Record<string, string>): string {
@@ -368,7 +387,10 @@ test("tool_result annotate patches content and details", async () => {
 		ctx,
 	);
 	assert.equal(res.content.length, 2);
-	assert.deepEqual(res.content[1], { type: "text", text: "Consultez le guide de test." });
+	assert.deepEqual(res.content[1], {
+		type: "text",
+		text: "Consultez le guide de test.",
+	});
 	assert.deepEqual(res.details, { ok: false });
 
 	// non-matching output → no patch
@@ -451,7 +473,12 @@ test("user_bash block hard-blocks a manual command", async () => {
 		{ hasUI: false },
 	);
 	assert.deepEqual(res, {
-		result: { output: "Pas de push manuel.", exitCode: 1, cancelled: false, truncated: false },
+		result: {
+			output: "Pas de push manuel.",
+			exitCode: 1,
+			cancelled: false,
+			truncated: false,
+		},
 	});
 
 	fs.rmSync(cwd, { recursive: true, force: true });
@@ -506,7 +533,10 @@ test("session_before_switch block cancels the switch", async () => {
 	await pi.handlers["session_start"]({}, { cwd });
 	const { ctx } = makeCtx({ hasUI: true });
 
-	const res = await pi.handlers["session_before_switch"]({ reason: "new" }, ctx);
+	const res = await pi.handlers["session_before_switch"](
+		{ reason: "new" },
+		ctx,
+	);
 	assert.deepEqual(res, { cancel: true });
 
 	fs.rmSync(cwd, { recursive: true, force: true });
@@ -609,43 +639,96 @@ action:
 
 test("nma command lists rules and reload re-reads the directory", async () => {
 	const pi = makePi();
+	const sent: Array<{ customType: string; content: string }> = [];
+	pi.sendMessage = (msg) =>
+		void sent.push({
+			customType: msg.customType,
+			content: String(msg.content),
+		});
 	createExtension(pi as any);
 	const cwd = makeProject({
 		".pi/context/a.md": LIST_RULE_A,
 		".pi/context/b.md": LIST_RULE_B,
 	});
 	await pi.handlers["session_start"]({}, { cwd });
-	const { ctx, editorCalls, notifyCalls } = makeCtx({ cwd, hasUI: true });
+	const { ctx, notifyCalls } = makeCtx({ cwd, hasUI: true });
 
 	assert.ok(pi.commands["nma"], "nma command registered");
 
-	await pi.commands["nma"]("", ctx);
-	assert.equal(editorCalls[0].title, "nma rules");
-	assert.match(editorCalls[0].text, /rule-a/);
-	assert.match(editorCalls[0].text, /rule-b/);
+	await pi.commands["nma"].handler("", ctx);
+	assert.equal(sent[0].customType, "nma");
+	assert.match(sent[0].content, /rule-a/);
+	assert.match(sent[0].content, /rule-b/);
 
 	// add a rule file, reload, and list again
-	fs.writeFileSync(path.join(cwd, ".pi/context/c.md"), LIST_RULE_A.replace("rule-a", "rule-c"));
-	await pi.commands["nma"]("reload", ctx);
+	fs.writeFileSync(
+		path.join(cwd, ".pi/context/c.md"),
+		LIST_RULE_A.replace("rule-a", "rule-c"),
+	);
+	await pi.commands["nma"].handler("reload", ctx);
 	assert.match(notifyCalls[0].message, /reloaded/);
-	await pi.commands["nma"]("", ctx);
-	assert.match(editorCalls[1].text, /rule-c/);
+	await pi.commands["nma"].handler("", ctx);
+	assert.match(sent[1].content, /rule-c/);
+
+	fs.rmSync(cwd, { recursive: true, force: true });
+});
+
+test("nma share shows the submission form URL and autocompletes all parameters", async () => {
+	const pi = makePi();
+	const sent: Array<{ customType: string; content: string }> = [];
+	pi.sendMessage = (msg) =>
+		void sent.push({
+			customType: msg.customType,
+			content: String(msg.content),
+		});
+	createExtension(pi as any);
+	const cwd = makeProject({});
+	await pi.handlers["session_start"]({}, { cwd });
+	const { ctx } = makeCtx({ cwd, hasUI: true });
+
+	// every parameter autocompletes from the full list
+	const nma = pi.commands["nma"];
+	const all = (nma.getArgumentCompletions?.("") ?? []) as Array<{
+		value: string;
+	}>;
+	assert.deepEqual(all.map((i) => i.value).sort(), [
+		"reload",
+		"share",
+		"status",
+	]);
+	// prefix filtering still works
+	assert.deepEqual(
+		((nma.getArgumentCompletions?.("s") ?? []) as Array<{ value: string }>).map(
+			(i) => i.value,
+		),
+		["status", "share"],
+	);
+
+	await nma.handler("share", ctx);
+	assert.equal(sent[0].customType, "nma");
+	assert.match(sent[0].content, /awesome-No-More-Agents-Dot-MD\/submit/);
 
 	fs.rmSync(cwd, { recursive: true, force: true });
 });
 
 test("nma status shows journal entries", async () => {
 	const pi = makePi();
+	const sent: Array<{ customType: string; content: string }> = [];
+	pi.sendMessage = (msg) =>
+		void sent.push({
+			customType: msg.customType,
+			content: String(msg.content),
+		});
 	createExtension(pi as any);
 	const cwd = makeProject({ ".pi/context/loud.md": NOTIFY_RULE });
 	await pi.handlers["session_start"]({}, { cwd });
-	const { ctx, editorCalls } = makeCtx({ hasUI: true });
+	const { ctx } = makeCtx({ hasUI: true });
 
 	await pi.handlers["input"]({ text: "hello", source: "interactive" }, ctx);
-	await pi.commands["nma"]("status", ctx);
-	assert.equal(editorCalls[0].title, "nma status");
-	assert.match(editorCalls[0].text, /loud-rule/);
-	assert.match(editorCalls[0].text, /notify/);
+	await pi.commands["nma"].handler("status", ctx);
+	assert.equal(sent[0].customType, "nma");
+	assert.match(sent[0].content, /loud-rule/);
+	assert.match(sent[0].content, /notify/);
 
 	fs.rmSync(cwd, { recursive: true, force: true });
 });

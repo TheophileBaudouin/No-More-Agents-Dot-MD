@@ -4,7 +4,9 @@
  * context injected into the agent. The frontmatter is never injected.
  */
 import * as path from "node:path";
+import { spawn } from "node:child_process";
 import {
+	copyToClipboard,
 	createLocalBashOperations,
 	type ExtensionAPI,
 	type ExtensionContext,
@@ -19,6 +21,23 @@ import {
 import type { Subject } from "./match.ts";
 
 const CONTEXT_DIR = ".pi/context";
+
+/** Submission form for the community registry (awesome-No-More-Agents-Dot-MD). */
+const SHARE_URL =
+	"https://theophilebaudouin.github.io/awesome-No-More-Agents-Dot-MD/submit/";
+
+/** Open a URL in the default browser (no shell; best-effort). */
+function openBrowser(url: string) {
+	const launch: Record<string, [string, string[]]> = {
+		darwin: ["open", [url]],
+		win32: ["rundll32", ["url.dll,FileProtocolHandler", url]],
+		linux: ["xdg-open", [url]],
+	};
+	const [cmd, args] = launch[process.platform] ?? launch.linux;
+	spawn(cmd, args, { stdio: "ignore", detached: true })
+		.on("error", () => {})
+		.unref();
+}
 
 type ActivityEntry = {
 	t: string;
@@ -69,7 +88,10 @@ export default function (pi: ExtensionAPI) {
 
 	function notifyRule(ctx: ExtensionContext | undefined, r: Rule) {
 		if (!ctx?.hasUI || !ctx.ui?.notify) return;
-		ctx.ui.notify(r.action.message ?? `${r.name} applies`, r.action.level ?? "info");
+		ctx.ui.notify(
+			r.action.message ?? `${r.name} applies`,
+			r.action.level ?? "info",
+		);
 	}
 
 	function notifyInject(ctx: ExtensionContext | undefined, r: Rule) {
@@ -128,7 +150,9 @@ export default function (pi: ExtensionAPI) {
 			}
 		}
 		if (chunks.length === 0) return;
-		const injected = chunks.map((r) => `## ${r.name}\n\n${r.body}`).join("\n\n");
+		const injected = chunks
+			.map((r) => `## ${r.name}\n\n${r.body}`)
+			.join("\n\n");
 		return { systemPrompt: `${event.systemPrompt}\n\n${injected}` };
 	});
 
@@ -328,7 +352,12 @@ export default function (pi: ExtensionAPI) {
 						notifyBlock(ctx, r);
 						log(r.name, "user_bash", "confirm-blocked");
 						return {
-							result: { output: reason, exitCode: 1, cancelled: false, truncated: false },
+							result: {
+								output: reason,
+								exitCode: 1,
+								cancelled: false,
+								truncated: false,
+							},
 						};
 					}
 					const ok = await ctx.ui.confirm(r.name, reason);
@@ -385,7 +414,10 @@ export default function (pi: ExtensionAPI) {
 	) {
 		const subject: Subject = {
 			...baseSubject(ctx),
-			text: ev === "session_before_switch" ? (event.reason ?? "") : (event.position ?? ""),
+			text:
+				ev === "session_before_switch"
+					? (event.reason ?? "")
+					: (event.position ?? ""),
 		};
 		for (const r of selectForEvent(rules, subject, ev)) {
 			switch (r.action.type) {
@@ -447,41 +479,84 @@ export default function (pi: ExtensionAPI) {
 		};
 	});
 
-	// /nma — manage rules from inside pi: list, reload, session status.
+	// /nma — manage rules from inside pi: list, reload, status, share.
+	// Output is shown in the transcript (pi.sendMessage), never in the input editor.
 	pi.registerCommand("nma", {
-		description: "No More Agents Dot MD: /nma (list), /nma reload, /nma status",
+		description:
+			"No More Agents Dot MD: /nma (list), /nma reload, /nma status, /nma share",
+		getArgumentCompletions: (prefix: string) => {
+			const items = ["reload", "status", "share"].flatMap((o) =>
+				o.startsWith(prefix) ? [{ value: o, label: o }] : [],
+			);
+			return items.length > 0 ? items : null;
+		},
 		handler: async (args, ctx) => {
 			const cmd = args.trim().split(/\s+/)[0] ?? "";
 			if (cmd === "reload") {
-				reload(ctx.cwd);
-				ctx.ui.notify(`[nma] ${rules.length} rule(s) reloaded`, "info");
+				try {
+					reload(ctx.cwd);
+					if (ctx.hasUI) {
+						ctx.ui.notify(`[nma] ${rules.length} rule(s) reloaded`, "info");
+					} else {
+						console.log(`[nma] ${rules.length} rule(s) reloaded`);
+					}
+				} catch (err) {
+					const msg = err instanceof Error ? err.message : String(err);
+					if (ctx.hasUI) ctx.ui.notify(`[nma] reload failed: ${msg}`, "error");
+					else console.error(`[nma] reload failed: ${msg}`);
+				}
+				return;
+			}
+			if (cmd === "share") {
+				openBrowser(SHARE_URL);
+				copyToClipboard(SHARE_URL);
+				pi.sendMessage({
+					customType: "nma",
+					content: `**Share a context file**\n\nYour browser should open the submission form. If not, open this URL — it is already copied to your clipboard:\n\n${SHARE_URL}`,
+					display: true,
+				});
 				return;
 			}
 			if (cmd === "status") {
 				const counts = new Map<string, number>();
-				for (const a of activity) counts.set(a.action, (counts.get(a.action) ?? 0) + 1);
-				const lines: string[] = [
-					`Rules loaded: ${rules.length}`,
-					`Once injections: ${injectedOnce.size}`,
-					`Pending context: ${pendingInject.length}`,
-					`Actions (by type): ${
-						[...counts.entries()].map(([a, n]) => `${a} ${n}`).join(", ") || "none"
+				for (const a of activity)
+					counts.set(a.action, (counts.get(a.action) ?? 0) + 1);
+				const lines = [
+					`**Rules loaded:** ${rules.length}`,
+					`**Once injections:** ${injectedOnce.size}`,
+					`**Pending context:** ${pendingInject.length}`,
+					`**Actions (by type):** ${
+						[...counts.entries()].map(([a, n]) => `${a} ${n}`).join(", ") ||
+						"none"
 					}`,
-					"---",
+					"",
+					"**Last actions**",
+					...activity
+						.slice(-10)
+						.map(
+							(a) =>
+								`- ${a.t} ${a.rule} ${a.event} ${a.action}${a.detail ? ` ${a.detail}` : ""}`,
+						),
 				];
-				for (const a of activity.slice(-10)) {
-					lines.push(
-						`${a.t} ${a.rule} ${a.event} ${a.action}${a.detail ? ` ${a.detail}` : ""}`,
-					);
-				}
-				ctx.ui.editor("nma status", lines.join("\n"));
+				pi.sendMessage({
+					customType: "nma",
+					content: lines.join("\n"),
+					display: true,
+				});
 				return;
 			}
 			const lines = rules.map((r) => {
 				const m = r.match ? JSON.stringify(r.match) : "always";
-				return `${r.name} [${r.events.join(",")}] ${r.action.type} p${r.priority} ${r.file} match=${m}`;
+				return `- **${r.name}** [${r.events.join(",")}] ${r.action.type} p${r.priority} — ${r.file} (match: ${m})`;
 			});
-			ctx.ui.editor("nma rules", lines.join("\n"));
+			pi.sendMessage({
+				customType: "nma",
+				content:
+					lines.length > 0
+						? `**Loaded rules**\n\n${lines.join("\n")}`
+						: "_No rules loaded yet. Ask the agent for your first rule — the skill creates `.pi/context/` for you._",
+				display: true,
+			});
 		},
 	});
 }

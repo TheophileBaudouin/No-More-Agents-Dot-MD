@@ -109,6 +109,7 @@ Registered by the extension; usable inside pi (TUI):
 | `/nma` | List loaded rules: name, events, action type, priority, file, match summary |
 | `/nma reload` | Re-read `.pi/context/` — no restart needed; confirms via notification |
 | `/nma status` | Session activity: loaded count, `once` injections, pending context, per-action counters, last 10 journal entries |
+| `/nma share` | Open the community submission form (awesome-No-More-Agents-Dot-MD) in the browser and copy its URL to the clipboard |
 
 ## Automatic notifications
 
