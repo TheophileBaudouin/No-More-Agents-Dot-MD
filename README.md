@@ -14,11 +14,11 @@ actually sees — injected only when it's relevant.
 
 This extension was born from [a video by Matt Pocock](https://youtu.be/9tmsq-Gvx6g?si=J_1MlTzlymxfOYd9) about the `/init` command. Its point: `/init` doesn't do magic — it just writes rules into an `AGENTS.md` file. Those rules then stay in the context **constantly**, even when they're useless for the task at hand.
 
-The alternative in the video: **hooks** — instructions that fire at the right moment (before a tool call, after a result, when the user types…). Claude Code has them natively, and Pi extensions already exist to create hook-compatible files.
+The alternative in the video: **Claude Code's hooks** — instructions that fire at the right moment (before a tool call, after a result, when the user types…). Claude Code has them natively, and Pi extensions already exist to create hook-compatible files.
 
 But stopping there felt like a shame: you'd only be able to produce files compatible with Claude Code — and never use the full power of the Pi SDK.
 
-**No More Agents Dot MD goes all the way.** It is a native Pi extension built on 100% of the Pi SDK, so your context is managed 100% by Pi:
+**No More Agents Dot MD goes all the way.** It is a native Pi extension built on 100% of the Pi SDK — itself far more permissive and granular than any hooks system — so your context is managed 100% by Pi, with a level of control that's impossible anywhere else:
 
 - instructions arrive **at the right moment**, injected only when they apply;
 - the agent sees **cleaner context** — no permanent noise in every prompt;
