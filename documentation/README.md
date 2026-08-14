@@ -1,6 +1,6 @@
-# No More Agents dot MD — human documentation
+# No More Agents Dot MD — human documentation
 
-Welcome! This folder explains the **Context Hooks Engine for Pi** the same way a
+Welcome! This folder explains **No More Agents Dot MD** the same way a
 good README would — no prior knowledge required. If you are brand new to this
 idea, start here. If you are an expert, jump straight to the
 [reference](reference.md).

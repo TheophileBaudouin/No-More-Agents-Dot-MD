@@ -1,11 +1,11 @@
 ---
 name: context-engine
-description: Creates and edits .pi/context/*.md declarative behavior rules for the Pi context-engine extension — conditional context injection, tool guards, confirmations, user-input transforms, post-tool guidance, session-change guards, tool toggling and notifications, managed via the /nma command. Use when asked to add project conventions (UI, git, testing, security), guardrails, or conditional context to a Pi project.
+description: Creates and edits .pi/context/*.md declarative behavior rules for the No More Agents Dot MD extension — conditional context injection, tool guards, confirmations, user-input transforms, post-tool guidance, session-change guards, tool toggling and notifications, managed via the /nma command. Use when asked to add project conventions (UI, git, testing, security), guardrails, or conditional context to a Pi project.
 ---
 
-# Context Engine
+# No More Agents Dot MD
 
-The `context-engine` Pi extension turns `.pi/context/*.md` files into
+The **No More Agents Dot MD** extension turns `.pi/context/*.md` files into
 behaviors: the YAML frontmatter describes when a rule applies and what it
 does; the Markdown body is the context injected into the agent. The frontmatter
 is never shown to the model — only the body is.

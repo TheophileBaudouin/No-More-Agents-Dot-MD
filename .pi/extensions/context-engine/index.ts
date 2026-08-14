@@ -1,5 +1,5 @@
 /**
- * Context Engine — turns `.pi/context/*.md` files into Pi behaviors.
+ * No More Agents Dot MD — turns `.pi/context/*.md` files into Pi behaviors.
  * Frontmatter YAML = behavior (events/match/action); the Markdown body is the
  * context injected into the agent. The frontmatter is never injected.
  */
@@ -449,7 +449,7 @@ export default function (pi: ExtensionAPI) {
 
 	// /nma — manage rules from inside pi: list, reload, session status.
 	pi.registerCommand("nma", {
-		description: "Context Engine: /nma (list), /nma reload, /nma status",
+		description: "No More Agents Dot MD: /nma (list), /nma reload, /nma status",
 		handler: async (args, ctx) => {
 			const cmd = args.trim().split(/\s+/)[0] ?? "";
 			if (cmd === "reload") {

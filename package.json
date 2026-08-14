@@ -1,7 +1,7 @@
 {
   "name": "no-more-agents-dot-md",
-  "version": "2.0.0",
-  "description": "Context Hooks Engine for Pi: turn .pi/context/*.md files into declarative behavior rules (conditional context injection, tool guards, confirmations, input transforms, notifications) managed with the /nma command.",
+  "version": "1.0.0",
+  "description": "No More Agents Dot MD: turn .pi/context/*.md files into declarative behavior rules (conditional context injection, tool guards, confirmations, input transforms, notifications) managed with the /nma command.",
   "keywords": ["pi-package", "pi", "extension", "skill", "context", "hooks"],
   "license": "MIT",
   "peerDependencies": {

@@ -1,4 +1,4 @@
-# no-agents dot md
+# No More Agents Dot MD
 
 Replace the monolithic `AGENTS.md` with tiny declarative context files
 (`.pi/context/*.md`) driven by a Pi extension. Each file is a micro-context:
