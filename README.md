@@ -102,7 +102,7 @@ Reload with `/nma reload` (no restart needed). Full schema in
 ## What a rule can do (v2)
 
 | Event | Subject matched | Actions |
-|-------|-----------------|---------|
+| --- | --- | --- |
 | `before_agent_start` | prompt text | inject, tools, notify |
 | `tool_call` | tool name, input JSON, command | block, confirm, modify, inject, tools, notify |
 | `tool_result` | tool name, output text (`result`) | annotate, inject, notify |

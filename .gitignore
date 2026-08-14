@@ -3,3 +3,4 @@ node_modules/
 .pi/subagents/
 docs/
 .pi/memory/
+.pi/context/
