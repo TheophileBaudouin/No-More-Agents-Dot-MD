@@ -1,13 +1,13 @@
 ---
 name: <kebab-name>
-description: <what and when — annule /new, /resume, /fork, /clone>
-events: [session_before_switch]   # ou session_before_fork
+description: <what and when — cancels /new, /resume, /fork, /clone>
+events: [session_before_switch]   # or session_before_fork
 match:
-  input: {contains: ["<raison: new | resume | before | at>"]}   # optionnel
+  input: {contains: ["<reason: new | resume | before | at>"]}   # optional
 action:
   type: confirm
-  message: "<question posée à l'utilisateur>"
+  message: "<question asked to the user>"
 priority: high
 ---
 
-Variante : `type: block` pour annuler sans dialogue.
+Variant: `type: block` to cancel without a dialog.

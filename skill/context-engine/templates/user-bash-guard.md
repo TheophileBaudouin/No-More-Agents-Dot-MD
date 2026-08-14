@@ -1,14 +1,14 @@
 ---
 name: <kebab-name>
-description: <what and when — garde sur les commandes ! / !! tapées à la main>
+description: <what and when — guard on ! / !! commands typed by hand>
 events: [user_bash]
 match:
   command: {regex: ["^<pattern>"]}
 action:
   type: confirm
-  message: "<avertissement visible>"
+  message: "<visible warning>"
 priority: high
 ---
 
-Variantes : `type: block` pour bloquer sans dialogue ; `type: modify` avec
-`command: {prepend: "...", append: "..."}` pour envelopper la commande.
+Variants: `type: block` to block without a dialog; `type: modify` with
+`command: {prepend: "...", append: "..."}` to wrap the command.

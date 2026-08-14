@@ -1,12 +1,12 @@
 ---
 name: <kebab-name>
-description: <what and when — active/désactive des outils selon le contexte>
-events: [before_agent_start]   # ou tool_call, input
+description: <what and when — enables/disables tools by context>
+events: [before_agent_start]   # or tool_call, input
 match:
-  input: {contains: ["<sujet>"]}
+  input: {contains: ["<topic>"]}
 action:
   type: tools
-  enable: [<tool>]      # outil à activer (enregistré dans pi)
-  disable: [<tool>]     # outil à désactiver (au moins un des deux)
+  enable: [<tool>]      # tool to enable (registered in pi)
+  disable: [<tool>]     # tool to disable (at least one of the two)
 priority: high
 ---

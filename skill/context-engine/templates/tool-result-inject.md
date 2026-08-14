@@ -1,6 +1,6 @@
 ---
 name: <kebab-name>
-description: <what and when — guidance après un résultat d'outil>
+description: <what and when — guidance after a tool result>
 events: [tool_result]
 match:
   tool: bash
@@ -8,4 +8,4 @@ match:
 action: {type: inject, once: true}
 ---
 
-<contexte montré au modèle juste après le résultat de l'outil>
+<context shown to the model right after the tool result>

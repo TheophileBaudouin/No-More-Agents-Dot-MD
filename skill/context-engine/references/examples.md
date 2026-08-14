@@ -7,14 +7,14 @@
 name: ui-context
 events: [before_agent_start]
 match:
-  input: {contains: [ui, ux, "interface utilisateur"]}
+  input: {contains: [ui, ux, "user interface"]}
 action: {type: inject, once: true}
 ---
 
 # UI Conventions
 
 - Reuse existing components.
-- French UI strings, English identifiers.
+- Keep user-visible text in English.
 ```
 
 ## 2. Confirm destructive git
@@ -28,7 +28,7 @@ match:
   command: {regex: ["^git push", "^git reset --hard", "^git push --force"]}
 action:
   type: confirm
-  message: "Commande Git potentiellement destructive."
+  message: "Potentially destructive git command."
 priority: high
 ---
 ```
@@ -91,13 +91,12 @@ match:
   input: {contains: ["?quick "]}
 action:
   type: transform
-  text: "Réponds brièvement à : {{texte}}"   # placeholder: remplacer par le texte voulu
+  text: "Answer briefly: {{text}}"   # placeholder: replace with the desired text
 ---
 ```
 
-Note: `transform` remplace tout le texte de la saisie (le placeholder
-`{{texte}}` est un exemple — l'extension ne fait pas de substitution, le texte
-est statique).
+Note: `transform` replaces the whole input text (the `{{text}}` placeholder
+is an example — the extension does no substitution, the text is static).
 
 ## 7. Handle input without the LLM (input → handled)
 
@@ -111,8 +110,8 @@ action: {type: handled}
 ---
 ```
 
-`handled` consomme la saisie : l'agent ne tourne pas (utilisez plutôt
-`notify` en complément pour donner un retour visible).
+`handled` consumes the input: the agent does not run (pair it with `notify`
+to give the user visible feedback).
 
 ## 8. React to a test failure (tool_result → annotate)
 
@@ -126,12 +125,12 @@ match:
   result: {contains: ["FAILED"]}
 action:
   type: annotate
-  append: "Conseil : lancez d'abord le test isolé, puis corrigez."
+  append: "Tip: run the isolated test first, then fix."
 ---
 
-# (optionnel) Contexte ajouté au résultat
+# (optional) Context added to the result
 
-- Ce body n'est PAS injecté pour `annotate` — seul `append` l'est.
+- This body is NOT injected for `annotate` — only `append` is.
 ```
 
 ## 9. Toggle tools by context (tools)
@@ -157,7 +156,7 @@ name: fork-guard
 events: [session_before_fork]
 action:
   type: confirm
-  message: "Forker cette session ?"
+  message: "Fork this session?"
 priority: high
 ---
 ```
@@ -173,7 +172,7 @@ match:
   command: {contains: ["git push"]}
 action:
   type: notify
-  message: "Push détecté."
+  message: "Push detected."
   level: warning
 ---
 ```

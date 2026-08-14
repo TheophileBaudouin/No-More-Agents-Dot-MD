@@ -36,12 +36,12 @@ priority: high
 
 Fires after the tool executed, before the result is finalized. Rules can:
 
-- `annotate` : patch le résultat — `append` ajoute un bloc texte à la sortie,
-  `details` est fusionné dans les details. Le modèle voit le texte annoté.
-- `inject` : queue le body pour le prochain appel LLM (comme tool_call).
-- `notify` : feedback visuel.
+- `annotate`: patches the result — `append` adds a text block to the output,
+  `details` is merged into the details. The model sees the annotated text.
+- `inject`: queues the body for the next LLM call (like tool_call).
+- `notify`: visual feedback.
 
-Matching sur la sortie via `result` :
+Match on the output via `result`:
 
 ```yaml
 ---
@@ -54,24 +54,24 @@ match:
 action:
   type: annotate
   append: |
-    Conseil : lancez le test isolé avant de corriger.
+    Tip: run the isolated test before fixing.
 ---
 ```
 
-## user_bash (commandes `!` / `!!`)
+## user_bash (`!` / `!!` commands)
 
-Les gardes s'appliquent aussi aux commandes tapées à la main.
+Guards also apply to commands typed by hand.
 
-- `block` → la commande est remplacée par un résultat d'erreur : sortie =
-  message de la règle, `exitCode: 1`.
-- `confirm` → dialogue ; refusé = bloquée. Sans UI, bloquée fail-safe.
-- `modify` → la commande est enveloppée avec `prepend` / `append` (via
+- `block` → the command is replaced by an error result: output = rule message,
+  `exitCode: 1`.
+- `confirm` → dialog; declined = blocked. Without UI, blocks fail-safe.
+- `modify` → the command is wrapped with `prepend` / `append` (via
   `createLocalBashOperations`).
 
-## Gardes de session (`/new`, `/resume`, `/fork`, `/clone`)
+## Session guards (`/new`, `/resume`, `/fork`, `/clone`)
 
-`session_before_switch` (reason : new|resume) et `session_before_fork`
-(position : before|at) permettent d'annuler un changement de session :
+`session_before_switch` (reason: new|resume) and `session_before_fork`
+(position: before|at) can cancel a session change:
 
 ```yaml
 ---
@@ -79,25 +79,27 @@ name: session-guard
 events: [session_before_fork]
 action:
   type: confirm
-  message: "Forker cette session ?"
+  message: "Fork this session?"
 priority: high
 ---
 ```
 
 - `block` → `{cancel: true}`.
-- `confirm` refusé → `{cancel: true}`. Sans UI → `{cancel: true}` (fail-safe).
+- declined `confirm` → `{cancel: true}`. Without UI → `{cancel: true}`
+  (fail-safe).
 
-## Commande `/nma`
+## The `/nma` command
 
-`/nma` gère les règles depuis pi, sans redémarrer :
+`/nma` manages rules from pi, without restarting:
 
-- `/nma` — liste les règles (nom, événements, action, priorité, fichier, match).
-- `/nma reload` — recharge `.pi/context/` immédiatement.
-- `/nma status` — état de la session : règles chargées, injections `once`,
-  contexte en attente, journal des actions (les 10 dernières).
+- `/nma` — lists the rules (name, events, action, priority, file, match).
+- `/nma reload` — reloads `.pi/context/` immediately.
+- `/nma status` — session state: loaded rules, `once` injections, pending
+  context, action journal (last 10).
 
 ## Notifications
 
-Quand une règle injecte ou bloque (ou qu'un confirm est refusé), une
-notification `[nma] ...` est affichée si pi a une UI. L'action `notify`
-permet un message personnalisé (`level: info | warning | error`).
+When a rule injects or blocks (or a confirm is declined), a
+`[nma] <name>: context injected` / `[nma] <name>: blocked` notification is
+shown when pi has a UI. The `notify` action allows a custom message
+(`level: info | warning | error`).

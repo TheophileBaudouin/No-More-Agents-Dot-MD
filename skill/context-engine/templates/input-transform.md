@@ -6,5 +6,5 @@ match:
   input: {contains: ["<trigger>"]}
 action:
   type: transform
-  text: "<texte complet qui remplace la saisie>"
+  text: "<full text replacing the input>"
 ---

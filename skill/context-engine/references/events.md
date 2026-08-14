@@ -4,17 +4,17 @@ A rule fires on the events listed in `events`. Each event exposes a different
 "subject" that `match` runs against. All events also expose the session state
 keys (`model`, `cwd`, `sessionSize`, `contextFill`).
 
-| Événement | Se déclenche | Sujet de match | Actions autorisées |
-|-----------|--------------|----------------|--------------------|
-| `before_agent_start` | après la soumission d'un prompt, avant la boucle agent | text = le prompt ; model, cwd, sessionSize, contextFill | inject, tools, notify |
-| `tool_call` | avant l'exécution d'un outil | tool = nom ; text = JSON des arguments ; command ; model, cwd, sessionSize, contextFill | block, confirm, modify, inject, tools, notify |
-| `tool_result` | après l'exécution d'un outil | tool ; text = JSON des arguments ; command ; **result** = sortie texte ; model, cwd, sessionSize, contextFill | annotate, inject, notify |
-| `input` | à la saisie utilisateur, avant expansion skills/templates | text = saisie brute ; **source** = interactive\|rpc\|extension ; model, cwd, sessionSize, contextFill | transform, handled, tools, notify |
-| `user_bash` | commande `!` / `!!` tapée à la main | text = commande ; command ; model, cwd, sessionSize, contextFill | block, confirm, modify, notify |
-| `session_before_switch` | avant `/new` ou `/resume` | text = reason (new\|resume) ; model, cwd, sessionSize, contextFill | confirm, block, notify |
-| `session_before_fork` | avant `/fork` ou `/clone` | text = position (before\|at) ; model, cwd, sessionSize, contextFill | confirm, block, notify |
+| Event | Fires when | Match subject | Allowed actions |
+| --- | --- | --- | --- |
+| `before_agent_start` | after a prompt is submitted, before the agent loop | text = prompt; model, cwd, sessionSize, contextFill | inject, tools, notify |
+| `tool_call` | before a tool executes | tool = name; text = arguments JSON; command; model, cwd, sessionSize, contextFill | block, confirm, modify, inject, tools, notify |
+| `tool_result` | after a tool executed | tool; text = arguments JSON; command; **result** = text output; model, cwd, sessionSize, contextFill | annotate, inject, notify |
+| `input` | on user input, before skill/template expansion | text = raw input; **source** = interactive\|rpc\|extension; model, cwd, sessionSize, contextFill | transform, handled, tools, notify |
+| `user_bash` | on a `!` / `!!` command typed by hand | text = command; command; model, cwd, sessionSize, contextFill | block, confirm, modify, notify |
+| `session_before_switch` | before `/new` or `/resume` | text = reason (new\|resume); model, cwd, sessionSize, contextFill | confirm, block, notify |
+| `session_before_fork` | before `/fork` or `/clone` | text = position (before\|at); model, cwd, sessionSize, contextFill | confirm, block, notify |
 
-## Par événement
+## Per event
 
 ### before_agent_start
 
@@ -23,7 +23,7 @@ Fires after the user submits a prompt, before the agent loop.
 - Subject text: the user's prompt (`event.prompt`).
 - `inject` appends the body to the system prompt. `once: true` injects only on
   the first matching prompt of the session.
-- `tools` / `notify` s'appliquent aussi ici.
+- `tools` / `notify` also apply here.
 
 ### tool_call
 
@@ -50,8 +50,9 @@ Fires on raw user input, before skill/template expansion.
 
 - `transform` replaces the input text (rules chain in priority order — each
   transform rule replaces the current text).
-- `handled` consumes the input: the agent does not run (first handled rule wins).
-- `tools` / `notify` s'appliquent aussi.
+- `handled` consumes the input: the agent does not run (first handled rule
+  wins).
+- `tools` / `notify` also apply.
 
 ### user_bash
 
@@ -64,5 +65,5 @@ Fires on `!` / `!!` commands typed by the user.
 
 Fires before `/new`, `/resume`, `/fork`, `/clone`.
 
-- `block` / `confirm` refusé → `{cancel: true}` : l'action de session est
-  annulée.
+- `block` / declined `confirm` → `{cancel: true}`: the session action is
+  cancelled.

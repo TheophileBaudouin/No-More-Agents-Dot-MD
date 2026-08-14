@@ -4,7 +4,7 @@ Every rule file starts with a `---`-delimited YAML block. Unknown keys are
 ignored (tolerated), so older examples keep working.
 
 | Key | Required | Type | Meaning |
-|-----|----------|------|---------|
+| --- | --- | --- | --- |
 | `name` | yes | string | Unique rule id. Used as section header in injected context and in block reasons. |
 | `description` | no | string | Shown to the user / used as block reason fallback. |
 | `events` | yes | string[] | One or more of the 7 valid events (see events.md). |
@@ -26,34 +26,34 @@ for that event — the loader rejects the file otherwise.
 `handled` · `annotate`
 
 ```yaml
-action: {type: inject, once: true}                    # inject (once par session, défaut false)
-action: {type: confirm, message: "..."}               # confirm / block (message optionnel)
+action: {type: inject, once: true}                    # inject (once per session, default false)
+action: {type: confirm, message: "..."}               # confirm / block (optional message)
 action: {type: block, message: "..."}
 action: {type: modify, command: {append: "...", prepend: "..."}}
-action: {type: tools, enable: [x], disable: [y]}      # au moins un des deux
-action: {type: notify, message: "...", level: warning}  # level: info|warning|error (défaut info)
-action: {type: transform, text: "nouveau texte"}      # input seulement
-action: {type: handled}                               # input seulement
-action: {type: annotate, append: "...", details: {...}}  # tool_result seulement
+action: {type: tools, enable: [x], disable: [y]}      # at least one of the two
+action: {type: notify, message: "...", level: warning}  # level: info|warning|error (default info)
+action: {type: transform, text: "new text"}           # input only
+action: {type: handled}                               # input only
+action: {type: annotate, append: "...", details: {...}}  # tool_result only
 ```
 
-Attention : la clé `level` (et non `type`) pour la variante de notify — `type`
-est déjà le discriminant de l'action.
+Note: the key is `level` (not `type`) for the notify variant — `type` is
+already the action discriminator.
 
-## Validation au chargement
+## Load-time validation
 
-- `events` : non vide, chaque événement doit être connu (erreur sinon, avec la
-  liste des valides).
-- `action.type` : connu **et compatible avec chaque événement listé** (erreur
-  sinon, avec les actions autorisées pour cet événement).
-- Un fichier sans frontmatter est une doc inerte (ignoré).
+- `events`: not empty, every event must be known (error otherwise, with the
+  list of valid events).
+- `action.type`: known **and compatible with every listed event** (error
+  otherwise, with the actions allowed for that event).
+- A file without frontmatter is inert documentation (ignored).
 
 Example:
 
 ```yaml
 ---
 name: ui-context
-description: Conventions UI
+description: UI conventions
 events: [before_agent_start]
 match:
   input: {contains: [ui, ux]}

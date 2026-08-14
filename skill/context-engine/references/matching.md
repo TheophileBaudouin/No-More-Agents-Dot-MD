@@ -3,33 +3,33 @@
 `match` is optional; absent = the rule always applies. All text comparisons are
 case-insensitive substrings unless a `regex` is given.
 
-| Key | S'applique à | Forme |
-|-----|-------------|-------|
-| `input` | texte du prompt (before_agent_start), JSON des arguments (tool_call, tool_result) | string \| string[] \| `{contains: [...]}` \| `{regex: [...]}` \| liste de ces formes |
-| `command` | `input.command` (outils bash-like, user_bash) | mêmes formes que `input` |
-| `tool` | nom de l'outil (tool_call, tool_result) | string \| string[] |
-| `result` | sortie texte de l'outil (tool_result) | mêmes formes que `input` |
-| `model` | modèle actif `provider/id` (tous événements) | string \| string[] — contains insensible à la casse |
-| `cwd` | chemin du projet (tous événements) | mêmes formes que `input` |
-| `sessionSize` | nombre d'entrées de session (tous événements) | nombre = minimum (>=) ; ou `{min: n, max: n}` |
-| `contextFill` | remplissage du contexte en % (tous événements) | nombre = minimum (>=) ; ou `{min, max}` |
-| `source` | origine de la saisie (input) | string \| string[] — égalité exacte : interactive \| rpc \| extension |
-| `any` | toute la règle | liste de sous-specs ; si UNE matche, la règle matche immédiatement |
+| Key | Applies to | Form |
+| --- | --- | --- |
+| `input` | prompt text (before_agent_start), arguments JSON (tool_call, tool_result) | string \| string[] \| `{contains: [...]}` \| `{regex: [...]}` \| list of these forms |
+| `command` | `input.command` (bash-like tools, user_bash) | same forms as `input` |
+| `tool` | tool name (tool_call, tool_result) | string \| string[] |
+| `result` | tool text output (tool_result) | same forms as `input` |
+| `model` | active model `provider/id` (all events) | string \| string[] — contains, case-insensitive |
+| `cwd` | project path (all events) | same forms as `input` |
+| `sessionSize` | session entry count (all events) | number = minimum (>=); or `{min: n, max: n}` |
+| `contextFill` | context usage in % (all events) | number = minimum (>=); or `{min, max}` |
+| `source` | input origin (input) | string \| string[] — exact equality: interactive \| rpc \| extension |
+| `any` | the whole rule | list of sub-specs; if ONE matches, the rule matches immediately |
 
-Sémantique :
+Semantics:
 
-- Clés combinées = ET (toutes doivent matcher). `any` = OU gagnant immédiatement.
-- Dans un objet de motifs, `contains` et `regex` sont OU ; chaque liste est
-  any-of. `{contains: [ui, ux]}` matche "ui" ou "ux".
-- `regex` est ancré tel qu'écrit : utilisez `^` pour les débuts de commande
-  (`"^git push"`), et méfiez-vous des variantes `--force` (`"^git push --force"`).
-- `sessionSize` / `contextFill` : un nombre seul signifie « au moins ce
-  seuil » ; `{min: 5, max: 200}` borne inclusivement. Si la donnée n'est pas
-  disponible (ex. percent inconnu), la clé ne matche pas.
-- `model` : matche par sous-chaîne sur `provider/id` — `anthropic` matche
-  `anthropic/claude-sonnet-4`, `claude-sonnet-4` matche aussi.
+- Combined keys = AND (all must match). `any` = winning OR.
+- Inside a pattern object, `contains` and `regex` are OR; each list is any-of.
+  `{contains: [ui, ux]}` matches "ui" or "ux".
+- `regex` is anchored as written: use `^` for command starts (`"^git push"`),
+  and watch out for `--force` variants (`"^git push --force"`).
+- `sessionSize` / `contextFill`: a bare number means "at least this
+  threshold"; `{min: 5, max: 200}` bounds inclusively. When the data is
+  unavailable (e.g. unknown percent), the key does not match.
+- `model`: matches by substring on `provider/id` — `anthropic` matches
+  `anthropic/claude-sonnet-4`, and `claude-sonnet-4` matches too.
 
-Exemple — garde bash :
+Example — bash guard:
 
 ```yaml
 match:
@@ -38,7 +38,7 @@ match:
     regex: ["^git push", "^git reset --hard"]
 ```
 
-Exemple — OR hétérogène :
+Example — heterogeneous OR:
 
 ```yaml
 match:
@@ -47,7 +47,7 @@ match:
     - tool: bash
 ```
 
-Exemple — réaction à la sortie d'un outil :
+Example — reacting to tool output:
 
 ```yaml
 match:
@@ -56,10 +56,10 @@ match:
   result: {contains: ["FAILED"]}
 ```
 
-Exemple — seulement sur un projet et quand le contexte est chargé :
+Example — only on one project, when context usage is high:
 
 ```yaml
 match:
-  cwd: {contains: ["mon-projet"]}
+  cwd: {contains: ["my-project"]}
   contextFill: 80
 ```
