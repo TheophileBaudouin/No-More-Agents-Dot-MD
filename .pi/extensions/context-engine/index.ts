@@ -499,7 +499,10 @@ export default function (pi: ExtensionAPI) {
 				try {
 					reload(ctx.cwd);
 					if (ctx.hasUI) {
-						ctx.ui.notify(`[${BRAND}] ${rules.length} rule(s) reloaded`, "info");
+						ctx.ui.notify(
+							`[${BRAND}] ${rules.length} rule(s) reloaded`,
+							"info",
+						);
 					} else {
 						console.log(`[${BRAND}] ${rules.length} rule(s) reloaded`);
 					}
