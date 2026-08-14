@@ -18,7 +18,9 @@ case-insensitive substrings unless a `regex` is given.
 
 Semantics:
 
-- Combined keys = AND (all must match). `any` = winning OR.
+- Combined keys = AND (all must match). `any` ORs with the rest of the rule:
+  if any sub-spec matches, the rule matches immediately; otherwise the
+  remaining keys still apply as a normal AND.
 - Inside a pattern object, `contains` and `regex` are OR; each list is any-of.
   `{contains: [ui, ux]}` matches "ui" or "ux".
 - `regex` is anchored as written: use `^` for command starts (`"^git push"`),

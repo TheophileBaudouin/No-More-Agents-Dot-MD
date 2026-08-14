@@ -14,6 +14,33 @@ type Tok =
 			mapItemValue?: string;
 	  };
 
+/**
+ * Strip an inline comment: a `#` preceded by whitespace (YAML rule) begins a
+ * comment — unless it sits inside brackets or quotes (`{regex: ["^#"]}`,
+ * `"a # b"` are literal).
+ */
+function stripInlineComment(s: string): string {
+	let depth = 0;
+	let inQuote: '"' | "'" | null = null;
+	for (let i = 0; i < s.length; i++) {
+		const ch = s[i];
+		if (inQuote) {
+			if (ch === inQuote) inQuote = null;
+			continue;
+		}
+		if (ch === '"' || ch === "'") {
+			inQuote = ch;
+			continue;
+		}
+		if (ch === "[" || ch === "{") depth++;
+		else if (ch === "]" || ch === "}") depth--;
+		else if (ch === "#" && depth === 0 && (i === 0 || /\s/.test(s[i - 1]))) {
+			return s.slice(0, i).trimEnd();
+		}
+	}
+	return s;
+}
+
 function tokenize(text: string): Tok[] {
 	const toks: Tok[] = [];
 	for (const raw of text.split("\n")) {
@@ -28,10 +55,10 @@ function tokenize(text: string): Tok[] {
 					indent,
 					item: "",
 					mapItemKey: rest.slice(0, i).trim(),
-					mapItemValue: rest.slice(i + 1).trim(),
+					mapItemValue: stripInlineComment(rest.slice(i + 1)).trim(),
 				});
 			} else {
-				toks.push({ indent, item: rest });
+				toks.push({ indent, item: stripInlineComment(rest) });
 			}
 		} else if (t.startsWith("-")) {
 			throw new Error(`Invalid list item: "${t}"`);
@@ -41,7 +68,7 @@ function tokenize(text: string): Tok[] {
 			toks.push({
 				indent,
 				key: t.slice(0, i).trim(),
-				value: t.slice(i + 1).trim(),
+				value: stripInlineComment(t.slice(i + 1)).trim(),
 			});
 		}
 	}

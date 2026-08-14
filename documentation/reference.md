@@ -19,8 +19,11 @@ action:                 # required
   type: string          #   one of the 9 actions (below)
   ...options            #   action-specific options
 priority: low|normal|high   # optional — default normal; high wins
-once: true|false            # optional — inject at most once per session
 ```
+
+`once` is not a top-level key: it is an **option of the `inject` action**
+(`action: {type: inject, once: true}`). A top-level `once` is ignored by the
+loader.
 
 ### The 7 events
 
@@ -31,14 +34,14 @@ once: true|false            # optional — inject at most once per session
 | `tool_result` | a tool just returned | tool name, output text (`result`), `command` |
 | `input` | raw user input arrives | the input text, `source` |
 | `user_bash` | the user runs `!` / `!!` manually | the command text |
-| `session_before_switch` | `/new`, `/resume`, `/clone` | `reason` (`new` \| `resume`) |
-| `session_before_fork` | `/fork` | `position` (`before` \| `at`) |
+| `session_before_switch` | `/new`, `/resume` | `reason` (`new` \| `resume`) |
+| `session_before_fork` | `/fork`, `/clone` | `position` (`before` \| `at`) |
 
 ### The 9 actions
 
 | Action | Event compatibility | Options | Effect |
 | --- | --- | --- | --- |
-| `inject` | `before_agent_start`, `tool_call`, `tool_result` | — (body is the content) | Queues the body into the agent's context |
+| `inject` | `before_agent_start`, `tool_call`, `tool_result` | `once: true` — at most once per session (body is the content) | Queues the body into the agent's context |
 | `confirm` | `tool_call`, `user_bash`, `session_before_switch`, `session_before_fork` | `message` | Asks the human; decline → blocked |
 | `block` | `tool_call`, `user_bash`, `session_before_switch`, `session_before_fork` | `message` | Refuses outright |
 | `modify` | `tool_call`, `user_bash` | `command: {prepend, append}` | Rewrites the command before it runs |
@@ -58,9 +61,10 @@ command.
 
 ### The 10 match keys
 
-All match values accept: a **string** (substring, case-insensitive), a **list**
-of strings (any-of), `{contains: [...]}` (any-of), or `{regex: [...]}` (any-of,
-full RegExp match).
+The text match keys (`input`, `command`, `cwd`, `result`) accept any of: a
+**string** (substring, case-insensitive), a **list** of strings (any-of),
+`{contains: [...]}` (any-of), or `{regex: [...]}` (any-of, full RegExp match,
+anchored as written). The other keys have their own forms — see the table.
 
 | Key | Subject field | Notes |
 | --- | --- | --- |
@@ -69,7 +73,7 @@ full RegExp match).
 | `tool` | tool name | exact |
 | `result` | tool output text | `tool_result` |
 | `model` | `provider/id` of the active model | contains, case-insensitive |
-| `cwd` | current working directory | contains |
+| `cwd` | current working directory | contains (or regex) |
 | `sessionSize` | session entries count | number = "at least N"; or `{min, max}` |
 | `contextFill` | context usage, % | number = "at least N"; or `{min, max}` |
 | `source` | input origin | exact: `interactive` \| `rpc` \| `extension` |

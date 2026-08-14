@@ -20,7 +20,7 @@ directory when it is missing.
   (`before_agent_start`) or queued for the next LLM call (`tool_call`,
   `tool_result`).
 - **block / confirm** — guards on tools, on `!` / `!!` commands typed by hand,
-  and on session changes (`/new`, `/resume`, `/fork`).
+  and on session changes (`/new`, `/resume`, `/fork`, `/clone`).
 - **modify** — command patching (prepend/append).
 - **tools** — enable/disable tools by context.
 - **transform / handled** — rewrite or consume user input.

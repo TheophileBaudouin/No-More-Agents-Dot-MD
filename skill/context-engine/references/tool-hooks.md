@@ -53,8 +53,7 @@ match:
   result: {contains: ["FAILED"]}
 action:
   type: annotate
-  append: |
-    Tip: run the isolated test before fixing.
+  append: "Tip: run the isolated test before fixing."
 ---
 ```
 

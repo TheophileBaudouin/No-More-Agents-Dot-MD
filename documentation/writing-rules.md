@@ -61,6 +61,9 @@ No YAML knowledge required — the engine uses a deliberately small subset:
 | Inline map | `match:\n  input: {contains: ["ui"]}` | key → value pair |
 | Plain values | `priority: high` | a simple string/number |
 
+Comments are allowed: anything after a space followed by `#` on a value line
+is ignored (`events: [tool_call]   # or any event`).
+
 That's it. If you know those four, you can write any rule.
 
 ## Rule of thumb: keep one rule = one topic
@@ -155,7 +158,7 @@ Rules can listen on the event's *subject*:
 | `tool` | the tool name | `bash`, `edit`, `read`… |
 | `result` | the text output of a tool | same forms as `input` |
 | `model` | the active model, `provider/id` | contains, case-insensitive |
-| `cwd` | the current working directory | contains / exact |
+| `cwd` | the current working directory | contains (or regex) |
 | `sessionSize` | number of session entries | a number = "at least", or `{min, max}` |
 | `contextFill` | context usage in % | a number = "at least", or `{min, max}` |
 | `source` | where the input came from | `interactive`, `rpc`, `extension` (exact) |
@@ -181,3 +184,4 @@ any), or `{contains: [...]}` / `{regex: [...]}` for explicit control.
 
 Browse ready-to-copy recipes in [Examples](examples.md), or go deep on the full
 contract in [Reference](reference.md).
+[Reference](reference.md).

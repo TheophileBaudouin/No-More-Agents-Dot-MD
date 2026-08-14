@@ -49,6 +49,15 @@ test("comments and empty lines are ignored", () => {
  assert.deepEqual(parseYamlSubset("# header comment\n\nname: x\n"), { name: "x" });
 });
 
+test("strips inline comments after values, but not inside brackets/quotes", () => {
+ assert.deepEqual(
+  parseYamlSubset(
+   'events: [tool_call]  # or any event\nmessage: "a # b" # note\ncommand: {regex: ["^#x"]} # c',
+  ),
+  { events: ["tool_call"], message: "a # b", command: { regex: ["^#x"] } },
+ );
+});
+
 test("rejects lines without a colon", () => {
  assert.throws(() => parseYamlSubset("this line has no colon"));
 });
