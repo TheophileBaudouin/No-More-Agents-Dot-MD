@@ -6,11 +6,50 @@ import { parseYamlSubset } from "./frontmatter.ts";
 import { matchRule, type Subject } from "./match.ts";
 
 export type RuleAction = {
- type: "inject" | "confirm" | "block" | "modify";
+ type: "inject" | "confirm" | "block" | "modify" | "tools" | "notify" | "transform" | "handled" | "annotate";
  once?: boolean;
  message?: string;
+ level?: "info" | "warning" | "error";
  command?: { append?: string; prepend?: string };
+ enable?: string[];
+ disable?: string[];
+ text?: string;
+ append?: string;
+ details?: unknown;
 };
+
+export const VALID_EVENTS: readonly string[] = [
+ "before_agent_start",
+ "tool_call",
+ "tool_result",
+ "input",
+ "user_bash",
+ "session_before_switch",
+ "session_before_fork",
+];
+
+/** Event → allowed action types (v2 contract). */
+export const EVENT_ACTIONS: Record<string, readonly string[]> = {
+ before_agent_start: ["inject", "tools", "notify"],
+ tool_call: ["block", "confirm", "modify", "inject", "tools", "notify"],
+ tool_result: ["annotate", "inject", "notify"],
+ input: ["transform", "handled", "tools", "notify"],
+ user_bash: ["block", "confirm", "modify", "notify"],
+ session_before_switch: ["confirm", "block", "notify"],
+ session_before_fork: ["confirm", "block", "notify"],
+};
+
+const VALID_ACTIONS: readonly string[] = [
+ "inject",
+ "confirm",
+ "block",
+ "modify",
+ "tools",
+ "notify",
+ "transform",
+ "handled",
+ "annotate",
+];
 
 export type Rule = {
  name: string;
@@ -39,13 +78,32 @@ export function parseContextFile(raw: string, file: string): Rule | null {
  if (!action || typeof action !== "object" || typeof action.type !== "string") {
   throw new Error(`missing "action.type"`);
  }
+ if (!VALID_ACTIONS.includes(action.type)) {
+  throw new Error(`unknown action.type "${action.type}" (valid: ${VALID_ACTIONS.join(", ")})`);
+ }
+ const eventNames = events.map(String);
+ for (const e of eventNames) {
+  if (!VALID_EVENTS.includes(e)) {
+   throw new Error(`unknown event "${e}" (valid: ${VALID_EVENTS.join(", ")})`);
+  }
+ }
+ for (const e of eventNames) {
+  if (!EVENT_ACTIONS[e].includes(action.type)) {
+   throw new Error(
+    `action "${action.type}" is not allowed for event "${e}" (allowed: ${EVENT_ACTIONS[e].join(", ")})`,
+   );
+  }
+ }
+ let priority = 2; // normal
+ if (meta.priority === "high") priority = 3;
+ else if (meta.priority === "low") priority = 1;
  return {
   name,
   description: typeof meta.description === "string" ? meta.description : "",
-  events: events.map(String),
+  events: eventNames,
   match: (meta.match as Record<string, unknown> | undefined) ?? undefined,
   action,
-  priority: meta.priority === "high" ? 3 : meta.priority === "low" ? 1 : 2,
+  priority,
   body: raw.slice(m[0].length).trim(),
   file,
  };
@@ -73,18 +131,19 @@ export function loadContextDir(dir: string): Rule[] {
  return sortRules(rules);
 }
 
+/** Pure selection for any event (all action types; priority order preserved). */
+export function selectForEvent(rules: Rule[], subject: Subject, event: string): Rule[] {
+ return rules.filter((r) => r.events.includes(event) && matchRule(r.match, subject));
+}
+
 /** Pure selection for before_agent_start injection. */
 export function selectInject(rules: Rule[], subject: Subject, injectedOnce: Set<string>): Rule[] {
- return rules.filter(
-  (r) =>
-   r.events.includes("before_agent_start") &&
-   r.action.type === "inject" &&
-   (!r.action.once || !injectedOnce.has(r.name)) &&
-   matchRule(r.match, subject),
+ return selectForEvent(rules, subject, "before_agent_start").filter(
+  (r) => r.action.type === "inject" && (!r.action.once || !injectedOnce.has(r.name)),
  );
 }
 
 /** Pure selection for tool_call (all action types; priority order preserved). */
 export function selectToolRules(rules: Rule[], subject: Subject): Rule[] {
- return rules.filter((r) => r.events.includes("tool_call") && matchRule(r.match, subject));
+ return selectForEvent(rules, subject, "tool_call");
 }

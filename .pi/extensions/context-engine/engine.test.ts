@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { parseContextFile, loadContextDir, selectInject, selectToolRules } from "./engine.ts";
+import { parseContextFile, loadContextDir, selectInject, selectToolRules, selectForEvent } from "./engine.ts";
 
 const UI_RULE = `---
 name: ui-context
@@ -88,4 +88,125 @@ test("selectToolRules matches tool_call rules", () => {
  const rules = [guard];
  assert.equal(selectToolRules(rules, { text: "{}", tool: "bash", command: "git push" }).length, 1);
  assert.equal(selectToolRules(rules, { text: "{}", tool: "bash", command: "ls" }).length, 0);
+});
+
+test("parseContextFile parses all 9 action forms", () => {
+ const cases: Array<[string, string]> = [
+  ["inject", "action: {type: inject}"],
+  ["confirm", "action: {type: confirm, message: \"ok?\"}"],
+  ["block", "action: {type: block, message: \"no\"}"],
+  ["modify", "action: {type: modify, command: {append: \" --verbose\", prepend: \"echo hi; \"}}"],
+  ["tools", "action: {type: tools, enable: [git_status], disable: [bash]}"],
+  ["notify", "action: {type: notify, message: \"hello\", level: warning}"],
+  ["transform", "action: {type: transform, text: \"new text\"}"],
+  ["handled", "action: {type: handled}"],
+  ["annotate", "action: {type: annotate, append: \"see docs\", details: {k: 1}}"],
+ ];
+ for (const [type, actionYaml] of cases) {
+  const events =
+   type === "transform" || type === "handled"
+    ? "input"
+    : type === "annotate"
+      ? "tool_result"
+      : "tool_call";
+  const rule = parseContextFile(
+   `---\nname: ${type}\nevents: [${events}]\n${actionYaml}\n---\nbody`,
+   `${type}.md`,
+  )!;
+  assert.equal(rule.action.type, type);
+ }
+ // field-level checks on representative rules
+ const tools = parseContextFile(
+  "---\nname: t\nevents: [tool_call]\naction: {type: tools, enable: [git_status], disable: [bash]}\n---\n",
+  "t.md",
+ )!;
+ assert.deepEqual(tools.action.enable, ["git_status"]);
+ assert.deepEqual(tools.action.disable, ["bash"]);
+ const notify = parseContextFile(
+  "---\nname: n\nevents: [input]\naction: {type: notify, message: \"hi\", level: warning}\n---\n",
+  "n.md",
+ )!;
+ assert.equal(notify.action.level, "warning");
+ assert.equal(notify.action.message, "hi");
+ const annotate = parseContextFile(
+  "---\nname: a\nevents: [tool_result]\naction: {type: annotate, append: \"docs\", details: {k: 1}}\n---\n",
+  "a.md",
+ )!;
+ assert.equal(annotate.action.append, "docs");
+ assert.deepEqual(annotate.action.details, { k: 1 });
+ const modify = parseContextFile(
+  "---\nname: m\nevents: [tool_call]\naction: {type: modify, command: {append: \" --verbose\", prepend: \"echo hi; \"}}\n---\n",
+  "m.md",
+ )!;
+ assert.deepEqual(modify.action.command, { append: " --verbose", prepend: "echo hi; " });
+});
+
+test("parseContextFile rejects unknown events", () => {
+ assert.throws(
+  () => parseContextFile("---\nname: x\nevents: [nope]\naction: {type: block}\n---\n", "x.md"),
+  /unknown event "nope"/,
+ );
+ assert.throws(
+  () =>
+   parseContextFile(
+    "---\nname: x\nevents: [tool_call, nope]\naction: {type: block}\n---\n",
+    "x.md",
+   ),
+  /unknown event "nope"/,
+ );
+});
+
+test("parseContextFile rejects unknown action types", () => {
+ assert.throws(
+  () => parseContextFile("---\nname: x\nevents: [tool_call]\naction: {type: explode}\n---\n", "x.md"),
+  /unknown action.type "explode"/,
+ );
+});
+
+test("parseContextFile rejects action incompatible with the event", () => {
+ assert.throws(
+  () => parseContextFile("---\nname: a\nevents: [input]\naction: {type: annotate}\n---\n", "a.md"),
+  /not allowed for event "input"/,
+ );
+ assert.throws(
+  () => parseContextFile("---\nname: t\nevents: [tool_call]\naction: {type: transform}\n---\n", "t.md"),
+  /not allowed/,
+ );
+ assert.throws(
+  () => parseContextFile("---\nname: u\nevents: [user_bash]\naction: {type: inject}\n---\n", "u.md"),
+  /not allowed/,
+ );
+});
+
+test("selectForEvent filters by event and match", () => {
+ const inject = parseContextFile(UI_RULE, "ui.md")!;
+ const guard = parseContextFile(
+  "---\nname: g\nevents: [tool_call]\nmatch:\n  tool: bash\naction: {type: block}\n---\n",
+  "g.md",
+ )!;
+ const rules = [inject, guard];
+ assert.equal(selectForEvent(rules, { text: "improve the ui" }, "before_agent_start").length, 1);
+ assert.equal(selectForEvent(rules, { text: "improve the ui" }, "tool_call").length, 0);
+ assert.equal(selectForEvent(rules, { text: "{}", tool: "bash" }, "tool_call").length, 1);
+ assert.equal(selectForEvent(rules, { text: "improve the ui" }, "input").length, 0);
+});
+
+test("selectForEvent matches v2 subject dimensions", () => {
+ const r = parseContextFile(
+  "---\nname: m\nevents: [input]\nmatch:\n  model: anthropic\n  sessionSize: 5\naction: {type: notify, message: \"x\"}\n---\n",
+  "m.md",
+ )!;
+ const rules = [r];
+ assert.equal(
+  selectForEvent(rules, { text: "t", model: "anthropic/claude-sonnet-4", sessionSize: 10 }, "input").length,
+  1,
+ );
+ assert.equal(
+  selectForEvent(rules, { text: "t", model: "openai/gpt-5", sessionSize: 10 }, "input").length,
+  0,
+ );
+ assert.equal(
+  selectForEvent(rules, { text: "t", model: "anthropic/claude-sonnet-4", sessionSize: 3 }, "input").length,
+  0,
+ );
 });
