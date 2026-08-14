@@ -238,6 +238,27 @@ function parseScalar(v: string): string | number | boolean | null {
  return v !== "" && !Number.isNaN(n) ? n : v;
 }
 
+// Split on commas only outside brackets, so inline maps can contain inline
+// lists (`{contains: [ui, ux]}`). Naive split(",") would break on commas
+// inside bracket values (fixed during Task 2 execution).
+function splitTopLevel(s: string): string[] {
+ const parts: string[] = [];
+ let depth = 0;
+ let cur = "";
+ for (const ch of s) {
+  if (ch === "[" || ch === "{") depth++;
+  else if (ch === "]" || ch === "}") depth--;
+  if (ch === "," && depth === 0) {
+   parts.push(cur);
+   cur = "";
+  } else {
+   cur += ch;
+  }
+ }
+ parts.push(cur);
+ return parts;
+}
+
 function parseValue(v: string): unknown {
  if (v.startsWith("[") && v.endsWith("]")) {
   const inner = v.slice(1, -1).trim();
@@ -247,7 +268,7 @@ function parseValue(v: string): unknown {
   const inner = v.slice(1, -1).trim();
   if (!inner) return {};
   const map: Record<string, unknown> = {};
-  for (const pair of inner.split(",")) {
+  for (const pair of splitTopLevel(inner)) {
    const i = pair.indexOf(":");
    map[pair.slice(0, i).trim()] = parseValue(pair.slice(i + 1).trim());
   }
