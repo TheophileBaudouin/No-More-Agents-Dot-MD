@@ -191,7 +191,7 @@ test("selectForEvent filters by event and match", () => {
  assert.equal(selectForEvent(rules, { text: "improve the ui" }, "input").length, 0);
 });
 
-test("selectForEvent matches v2 subject dimensions", () => {
+test("selectForEvent matches subject dimensions", () => {
  const r = parseContextFile(
   "---\nname: m\nevents: [input]\nmatch:\n  model: anthropic\n  sessionSize: 5\naction: {type: notify, message: \"x\"}\n---\n",
   "m.md",

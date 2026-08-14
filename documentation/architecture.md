@@ -104,7 +104,7 @@ naming the file, instead of silently misbehaving.
 cd .pi/extensions/context-engine && node --test "*.test.ts"
 ```
 
-The suite (63 tests at v2) covers the parser, the matcher, the engine
+The suite (63 tests) covers the parser, the matcher, the engine
 validation, and — through a fake-pi harness in `index.test.ts` — every event
 handler and the `/nma` command. The fake-pi harness is the same file the E2E
 behavior is defined against, so a failing test means a real behavior broke.

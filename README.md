@@ -99,7 +99,7 @@ Reload with `/nma reload` (no restart needed). Full schema in
 - `/nma reload` — reload `.pi/context/` without restarting pi.
 - `/nma status` — what fired this session (injections, blocks, journal).
 
-## What a rule can do (v2)
+## What a rule can do
 
 | Event | Subject matched | Actions |
 | --- | --- | --- |

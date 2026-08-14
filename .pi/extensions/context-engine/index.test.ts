@@ -35,7 +35,7 @@ function makePi(): FakePi {
 	};
 }
 
-/** Rich fake ctx for v2 tests: captures notify/editor calls. */
+/** Rich fake ctx: captures notify/editor calls. */
 function makeCtx(overrides: Record<string, unknown> = {}) {
 	const notifyCalls: Array<{ message: string; level?: string }> = [];
 	const editorCalls: Array<{ title: string; text: string }> = [];
@@ -276,7 +276,7 @@ action:
 	fs.rmSync(cwd, { recursive: true, force: true });
 });
 
-// ---------------- v2 tests ----------------
+// ---------------- tests ----------------
 
 const INPUT_TRANSFORM = `---
 name: expand-tests

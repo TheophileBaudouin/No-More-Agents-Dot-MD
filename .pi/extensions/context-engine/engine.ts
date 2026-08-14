@@ -28,7 +28,7 @@ export const VALID_EVENTS: readonly string[] = [
  "session_before_fork",
 ];
 
-/** Event → allowed action types (v2 contract). */
+/** Event → allowed action types. */
 export const EVENT_ACTIONS: Record<string, readonly string[]> = {
  before_agent_start: ["inject", "tools", "notify"],
  tool_call: ["block", "confirm", "modify", "inject", "tools", "notify"],

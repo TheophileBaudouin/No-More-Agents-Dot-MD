@@ -76,7 +76,7 @@ export function matchRule(m: MatchSpec | undefined, s: Subject): boolean {
    return true;
   }
   // none of the sub-specs matched; only remaining keys can still match
-  // (covers v1 + v2 keys: any other key present means the rule can still match)
+  // (any other key present means the rule can still match)
   if (Object.keys(m).filter((k) => k !== "any").length === 0) {
    return false;
   }
