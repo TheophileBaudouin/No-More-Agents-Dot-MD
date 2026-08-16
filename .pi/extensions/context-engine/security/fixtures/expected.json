@@ -256,10 +256,6 @@
     "expected": "none",
     "mode": "context"
   },
-  "false-positives/code-block-examples.md": {
-    "expected": "none",
-    "mode": "context"
-  },
   "false-positives/sudo-prose.md": {
     "expected": "none",
     "mode": "context"
@@ -295,5 +291,15 @@
   "false-positives/inline-curl-doc.md": {
     "expected": "none",
     "mode": "context"
+  },
+  "prompt-injection/fenced-payloads.md": {
+    "expected": "high",
+    "mode": "context",
+    "note": "quoted payloads in fences are flagged since H-1 (deliberate: indistinguishable from an attack file)"
+  },
+  "false-positives/code-example.md": {
+    "expected": "none",
+    "mode": "context",
+    "note": "benign code examples in fences stay silent"
   }
 }

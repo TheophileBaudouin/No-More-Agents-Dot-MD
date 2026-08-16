@@ -1,9 +1,21 @@
 /** Orchestrator: normalize -> decode -> scan -> aggregate. No pi imports. */
 
-import { aggregate, isTerminal, mkFinding, type Finding, type RiskLevel, type ScanResult } from "./types.ts";
+import {
+  aggregate,
+  isTerminal,
+  mkFinding,
+  type Finding,
+  type RiskLevel,
+  type ScanResult,
+} from "./types.ts";
 import { findDecodedBlobs } from "./encoding.ts";
 import { scanUnicode } from "./unicode.ts";
-import { stripCodeBlocks, stripHtmlComments, scanMarkdown } from "./markdown.ts";
+import {
+  stripCodeBlocks,
+  stripHtmlComments,
+  scanMarkdown,
+  findCodeBlocks,
+} from "./markdown.ts";
 import { scanRules, scanExternalRefs } from "./rules.ts";
 
 export type Provenance = "user" | "downloaded" | "untrusted-project";
@@ -17,7 +29,12 @@ const DOWNLOAD_AGE_MS = 3600000; // 1 hour
  */
 export function provenance(
   _file: string,
-  signals: { isProjectTrusted: boolean; now?: Date; mtimeMs?: number; gitTracked?: boolean },
+  signals: {
+    isProjectTrusted: boolean;
+    now?: Date;
+    mtimeMs?: number;
+    gitTracked?: boolean;
+  },
 ): Provenance {
   const now = signals.now ?? new Date();
   if (
@@ -39,7 +56,11 @@ const NEXT_LEVEL: RiskLevel[] = ["none", "low", "medium", "high", "critical"];
  * rises to critical when a terminal finding is present (a CRITICAL decision
  * always needs a terminal finding or a >= critical score).
  */
-export function nudgeLevel(level: RiskLevel, prov: Provenance, findings: Finding[]): RiskLevel {
+export function nudgeLevel(
+  level: RiskLevel,
+  prov: Provenance,
+  findings: Finding[],
+): RiskLevel {
   if (level === "none" || level === "critical") return level;
   if (findings.length === 0) return level;
   if (prov !== "downloaded" && prov !== "untrusted-project") return level;
@@ -64,6 +85,24 @@ export function scanContext(raw: string, _file: string): ScanResult {
   findings.push(...scanMarkdown(noCode));
   findings.push(...scanRules(visible));
   findings.push(...scanExternalRefs(visible));
+  // H-1: fenced content is injected verbatim into the system prompt — scan it.
+  // Cap: code blocks are often legit examples => severity capped at high,
+  // terminal cleared. Result: instruction-like fenced content is never silent
+  // (>= medium => confirm) but never auto-critical.
+  for (const cb of findCodeBlocks(text)) {
+    const label = cb.closed ? "code block" : "unclosed code block";
+    for (const f of [
+      ...scanRules(cb.text, { lineOffset: cb.line, label }),
+      ...scanExternalRefs(cb.text, { lineOffset: cb.line, label }),
+    ]) {
+      if (f.severity === "critical" || f.terminal) {
+        f.severity = "high";
+        f.score = 10;
+        f.terminal = false;
+      }
+      findings.push(f);
+    }
+  }
   for (const blob of decoded) {
     const label = `decoded ${blob.from}`;
     findings.push(...scanRules(blob.text, { label }));
@@ -102,7 +141,13 @@ export function scanFrontmatter(meta: Record<string, unknown>): ScanResult {
     }
     if (type === "tools") {
       findings.push(
-        mkFinding("th-tools", "tool-hijack", "high", "high", "frontmatter action enables tools"),
+        mkFinding(
+          "th-tools",
+          "tool-hijack",
+          "high",
+          "high",
+          "frontmatter action enables tools",
+        ),
       );
     }
     if (type === "modify" && a.command && typeof a.command === "object") {
@@ -146,7 +191,9 @@ export function scanFrontmatter(meta: Record<string, unknown>): ScanResult {
       const generic =
         msg === "" ||
         msg.length < 8 ||
-        /^(are you sure|proceed|confirm|continue|ok|yes|allow|go ahead)[?.!]*$/i.test(msg);
+        /^(are you sure|proceed|confirm|continue|ok|yes|allow|go ahead)[?.!]*$/i.test(
+          msg,
+        );
       if (generic) {
         findings.push(
           mkFinding(

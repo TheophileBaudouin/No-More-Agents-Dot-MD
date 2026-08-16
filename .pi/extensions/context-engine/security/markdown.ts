@@ -41,12 +41,48 @@ export function stripCodeBlocks(raw: string): string {
   return lines.join("\n");
 }
 
+/** Fenced code blocks (``` or ~~~) with content + 1-based start line. `closed` false = fence runs to EOF. */
+export function findCodeBlocks(
+  raw: string,
+): Array<HiddenText & { closed: boolean }> {
+  const out: Array<HiddenText & { closed: boolean }> = [];
+  const lines = raw.split("\n");
+  let i = 0;
+  while (i < lines.length) {
+    const m = /^(```|~~~)/.exec(lines[i].trimStart());
+    if (!m) {
+      i++;
+      continue;
+    }
+    const ch = m[1][0];
+    const len = m[1].length;
+    const content: string[] = [];
+    let j = i + 1;
+    let closed = false;
+    while (j < lines.length) {
+      const t = lines[j].trimStart();
+      if (t.startsWith(ch.repeat(len)) && /^[`~]*$/.test(t)) {
+        closed = true;
+        break;
+      }
+      content.push(lines[j]);
+      j++;
+    }
+    out.push({ text: content.join("\n"), line: i + 1, column: 1, closed });
+    i = closed ? j + 1 : lines.length;
+  }
+  return out;
+}
+
 /** Html comments with their 1-based position. */
 export function findHtmlComments(raw: string): HiddenText[] {
   const out: HiddenText[] = [];
   const re = /<!--[\s\S]*?(?:-->|$)/g;
   for (const m of raw.matchAll(re)) {
-    const inner = m[0].slice(4, m[0].endsWith("-->") ? m[0].length - 3 : m[0].length);
+    const inner = m[0].slice(
+      4,
+      m[0].endsWith("-->") ? m[0].length - 3 : m[0].length,
+    );
     const p = posAt(raw, m.index + 4);
     out.push({ text: inner, line: p.line, column: p.column });
   }
@@ -54,7 +90,9 @@ export function findHtmlComments(raw: string): HiddenText[] {
 }
 
 /** Markdown links (http/https targets) with their 1-based position. */
-export function findMarkdownLinks(raw: string): Array<HiddenText & { url: string }> {
+export function findMarkdownLinks(
+  raw: string,
+): Array<HiddenText & { url: string }> {
   const out: Array<HiddenText & { url: string }> = [];
   const re = /\[([^\]]{1,200})\]\((https?:\/\/[^)\s]{1,500})\)/g;
   for (const m of raw.matchAll(re)) {
@@ -64,10 +102,19 @@ export function findMarkdownLinks(raw: string): Array<HiddenText & { url: string
   return out;
 }
 
-const RANK: Record<Severity, number> = { info: 0, low: 1, medium: 2, high: 3, critical: 4 };
+const RANK: Record<Severity, number> = {
+  info: 0,
+  low: 1,
+  medium: 2,
+  high: 3,
+  critical: 4,
+};
 
 function worstSeverity(fs: Finding[]): Severity {
-  return fs.reduce((w, f) => (RANK[f.severity] > RANK[w] ? f.severity : w), "info" as Severity);
+  return fs.reduce(
+    (w, f) => (RANK[f.severity] > RANK[w] ? f.severity : w),
+    "info" as Severity,
+  );
 }
 
 /** Findings for instructions hidden in html comments or markdown link texts. */
@@ -93,7 +140,10 @@ export function scanMarkdown(raw: string): Finding[] {
     );
   }
   for (const l of findMarkdownLinks(raw)) {
-    const hits = scanRules(l.text, { lineOffset: l.line - 1, columnOffset: l.column - 1 });
+    const hits = scanRules(l.text, {
+      lineOffset: l.line - 1,
+      columnOffset: l.column - 1,
+    });
     if (hits.length === 0) continue;
     const worst = worstSeverity(hits);
     findings.push(
