@@ -1,6 +1,6 @@
 /** URLhaus host reputation (Task 9, opt-in via NMA_URLHAUS_KEY). No pi imports. */
 
-import { NETWORK_TIMEOUT_MS, URLHAUS_KEY } from "./config.ts";
+import { NETWORK_TIMEOUT_MS, getUrlhausKey } from "./config.ts";
 
 export type FetchFn = typeof fetch;
 
@@ -13,7 +13,7 @@ export async function checkUrlhausHost(
   fetchFn?: FetchFn,
 ): Promise<{ match: boolean } | null> {
   // Re-read the env at call time so the key can be toggled without re-import.
-  const key = process.env.NMA_URLHAUS_KEY ?? URLHAUS_KEY;
+  const key = process.env.NMA_URLHAUS_KEY ?? getUrlhausKey();
   if (key === "") return null;
   const f = fetchFn ?? globalThis.fetch;
   try {

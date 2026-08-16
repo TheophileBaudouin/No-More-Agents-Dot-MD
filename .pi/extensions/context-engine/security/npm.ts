@@ -1,7 +1,7 @@
 /** npm Registry + OSV best-effort signals for install commands (Task 8). No pi imports. */
 
 import { aggregate, mkFinding, type Finding, type ScanResult } from "./types.ts";
-import { NETWORK_CACHE_TTL_MS, NETWORK_ENABLED, NETWORK_TIMEOUT_MS } from "./config.ts";
+import { NETWORK_CACHE_TTL_MS, isNetworkEnabled, NETWORK_TIMEOUT_MS } from "./config.ts";
 
 export type FetchFn = typeof fetch;
 
@@ -254,7 +254,7 @@ export async function enrichInstall(
   existing: ScanResult,
   fetchFn: FetchFn = globalThis.fetch,
 ): Promise<ScanResult> {
-  if (!NETWORK_ENABLED) return existing;
+  if (!isNetworkEnabled()) return existing;
   const targets = extractTargets(command);
   const extra: Finding[] = [];
   const npmTargets: NpmTarget[] = [];

@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import type { RiskLevel } from "./types.ts";
-import { TRUST_FILE } from "./config.ts";
+import { getTrustFile } from "./config.ts";
 
 export type TrustEntry = {
   sha256: string;
@@ -13,11 +13,11 @@ export type TrustEntry = {
   level: RiskLevel;
 };
 
-let trustFile: string = TRUST_FILE;
+let trustFile: string = getTrustFile();
 let store: Map<string, TrustEntry> | null = null;
 
 /** Load (or reload) the trust store. Corrupt files warn and start empty. */
-export function loadTrust(file: string = TRUST_FILE): Map<string, TrustEntry> {
+export function loadTrust(file: string = getTrustFile()): Map<string, TrustEntry> {
   trustFile = file;
   store = readStore(file);
   return store;

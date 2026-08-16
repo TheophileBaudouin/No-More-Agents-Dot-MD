@@ -19,6 +19,9 @@ import {
 	type Rule,
 } from "./engine.ts";
 import type { Subject } from "./match.ts";
+import { scanAction, needsNetworkCheck } from "./security/actions.ts";
+import { enrichInstall } from "./security/npm.ts";
+import type { ScanResult } from "./security/types.ts";
 
 const CONTEXT_DIR = ".pi/context";
 
@@ -70,6 +73,60 @@ export default function (pi: ExtensionAPI) {
 	function log(rule: string, event: string, action: string, detail?: string) {
 		activity.push({ t: new Date().toISOString(), rule, event, action, detail });
 		if (activity.length > 100) activity.shift();
+	}
+
+	/**
+	 * Security barrier B: scan the action BEFORE user rules run.
+	 * Returns a block reason, or null when the action may proceed. An action
+	 * approval is one-time only — nothing is ever persisted here.
+	 */
+	async function securityBarrier(
+		tool: string,
+		input: unknown,
+		event: string,
+		ctx: ExtensionContext | undefined,
+	): Promise<string | null> {
+		let sr: ScanResult;
+		try {
+			sr = scanAction(tool, input);
+		} catch (err) {
+			// Scanner bug must not break the agent: log and fall through.
+			console.error(`[${BRAND}] security scan failed: ${(err as Error).message}`);
+			return null;
+		}
+		let level = sr.level;
+		const cmd = (input as Record<string, unknown> | undefined)?.command;
+		const command = typeof cmd === "string" ? cmd : "";
+		if (command !== "" && needsNetworkCheck(sr, command)) {
+			try {
+				level = (await enrichInstall(command, sr)).level;
+			} catch (err) {
+				console.error(
+					`[${BRAND}] install enrichment failed: ${(err as Error).message}`,
+				);
+			}
+		}
+		if (level === "none" || level === "low") return null;
+		const ids = sr.findings.map((f) => f.id).join(", ");
+		if (!ctx?.hasUI) {
+			console.log(`[${BRAND}] blocked ${tool} action (${level}, no UI): ${ids}`);
+			return `${level.toUpperCase()} risk ${tool} action blocked by security barrier — ${ids}`;
+		}
+		const details = sr.findings
+			.map((f) => `- [${f.id}] ${f.evidence}`)
+			.join("\n");
+		const ok = await ctx.ui.confirm(
+			`${level} action: ${tool}`,
+			level === "critical"
+				? `Approve this dangerous action anyway? (one-time, never persisted)\n\n${details}`
+				: details,
+		);
+		if (!ok) {
+			log(BRAND, event, "security-block", `${level} ${tool}: ${ids}`);
+			return `${level.toUpperCase()} risk ${tool} action declined (security barrier)`;
+		}
+		log(BRAND, event, "security-approve", `${level} ${tool}: ${ids}`);
+		return null;
 	}
 
 	pi.on("session_start", async (_event, ctx: ExtensionContext) =>
@@ -200,7 +257,19 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	// Tool guards: block, confirm, modify, deferred injection, tools, notify.
+	// Security barrier B runs FIRST: its block short-circuits, its allow falls
+	// through to the user-rule loop untouched.
 	pi.on("tool_call", async (event, ctx) => {
+		const blockReason = await securityBarrier(
+			event.toolName,
+			event.input,
+			"tool_call",
+			ctx,
+		);
+		if (blockReason !== null) {
+			log(BRAND, "tool_call", "security-block", blockReason);
+			return { block: true, reason: blockReason };
+		}
 		const subject = toolSubject(event, ctx);
 
 		for (const r of selectToolRules(rules, subject)) {
@@ -327,6 +396,23 @@ export default function (pi: ExtensionAPI) {
 
 	// Guard manual `!` / `!!` commands (same rules as tool_call guards).
 	pi.on("user_bash", async (event, ctx) => {
+		const blockReason = await securityBarrier(
+			"bash",
+			{ command: event.command },
+			"user_bash",
+			ctx,
+		);
+		if (blockReason !== null) {
+			log(BRAND, "user_bash", "security-block", blockReason);
+			return {
+				result: {
+					output: blockReason,
+					exitCode: 1,
+					cancelled: false,
+					truncated: false,
+				},
+			};
+		}
 		const subject: Subject = {
 			...baseSubject(ctx),
 			text: event.command,

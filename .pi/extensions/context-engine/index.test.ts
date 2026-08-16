@@ -5,6 +5,18 @@ import * as os from "node:os";
 import * as path from "node:path";
 import createExtension from "./index.ts";
 
+// Security isolation: no network signals in integration tests. Read at call
+// time by config.ts, so setting it here covers every handler invocation.
+process.env.NMA_NETWORK = "0";
+
+/** Point the trust store at a fresh temp file (approve() writes there). */
+function useTempTrust(): string {
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nma-trust-"));
+	const file = path.join(dir, "trust.json");
+	process.env.NMA_TRUST_FILE = file;
+	return file;
+}
+
 type Handler = (...args: any[]) => any;
 type FakePi = {
 	on: (ev: string, h: Handler) => void;
@@ -729,6 +741,178 @@ test("nma status shows journal entries", async () => {
 	assert.equal(sent[0].customType, "No More Agents Dot MD");
 	assert.match(sent[0].content, /loud-rule/);
 	assert.match(sent[0].content, /notify/);
+
+	fs.rmSync(cwd, { recursive: true, force: true });
+});
+
+// ---------------- security barrier B (tool_call / user_bash) ----------------
+
+const CRITICAL_CMD = "rm -rf /";
+// Two downloads aggregate to medium (3*log2(3) = 5); a single one stays low.
+const MEDIUM_CMD =
+	"curl -s https://a.example/x && curl -s https://b.example/y";
+
+async function boot(pi: any, files: Record<string, string>) {
+	const cwd = makeProject(files);
+	await pi.handlers["session_start"]({}, { cwd });
+	return cwd;
+}
+
+function confirmCtx(uiOverrides: Record<string, unknown> = {}) {
+	return makeCtx({ hasUI: true, ui: uiOverrides }).ctx;
+}
+
+test("barrier B: critical bash command is blocked when confirm is declined", async () => {
+	const pi = makePi();
+	createExtension(pi as any);
+	const cwd = await boot(pi, {});
+
+	const res = await pi.handlers["tool_call"](
+		{ toolName: "bash", input: { command: CRITICAL_CMD } },
+		confirmCtx({ confirm: async () => false }),
+	);
+	assert.equal(res.block, true);
+	assert.match(res.reason, /critical/i);
+
+	fs.rmSync(cwd, { recursive: true, force: true });
+});
+
+test("barrier B: approved critical action runs, nothing is persisted", async () => {
+	const trust = useTempTrust();
+	const pi = makePi();
+	createExtension(pi as any);
+	const cwd = await boot(pi, {});
+
+	const res = await pi.handlers["tool_call"](
+		{ toolName: "bash", input: { command: CRITICAL_CMD } },
+		confirmCtx({ confirm: async () => true }),
+	);
+	assert.equal(res, undefined); // runs
+	assert.equal(fs.existsSync(trust), false); // one-time approval, never persisted
+
+	fs.rmSync(cwd, { recursive: true, force: true });
+});
+
+test("barrier B: no UI blocks medium+ fail-safe", async () => {
+	const pi = makePi();
+	createExtension(pi as any);
+	const cwd = await boot(pi, {});
+
+	const res = await pi.handlers["tool_call"](
+		{ toolName: "bash", input: { command: MEDIUM_CMD } },
+		{ hasUI: false },
+	);
+	assert.equal(res.block, true);
+	assert.match(res.reason, /medium/i);
+
+	fs.rmSync(cwd, { recursive: true, force: true });
+});
+
+test("barrier B: medium bash command prompts; declined blocks, approved runs", async () => {
+	const pi = makePi();
+	createExtension(pi as any);
+	const cwd = await boot(pi, {});
+
+	const confirmCalls: Array<[string, string]> = [];
+	const ctx = confirmCtx({
+		confirm: async (title: string, msg: string) => {
+			confirmCalls.push([title, msg]);
+			return false;
+		},
+	});
+	const declined = await pi.handlers["tool_call"](
+		{ toolName: "bash", input: { command: MEDIUM_CMD } },
+		ctx,
+	);
+	assert.equal(declined.block, true);
+	assert.equal(confirmCalls.length, 1);
+	assert.match(confirmCalls[0][0], /^medium action: bash$/);
+	assert.match(confirmCalls[0][1], /cmd-download/);
+
+	const approved = await pi.handlers["tool_call"](
+		{ toolName: "bash", input: { command: MEDIUM_CMD } },
+		confirmCtx({ confirm: async () => true }),
+	);
+	assert.equal(approved, undefined);
+
+	fs.rmSync(cwd, { recursive: true, force: true });
+});
+
+test("barrier B: low-risk install command does not prompt (NMA_NETWORK=0)", async () => {
+	const pi = makePi();
+	createExtension(pi as any);
+	const cwd = await boot(pi, {});
+
+	let confirms = 0;
+	const res = await pi.handlers["tool_call"](
+		{ toolName: "bash", input: { command: "npm install zod" } },
+		confirmCtx({
+			confirm: async () => {
+				confirms++;
+				return true;
+			},
+		}),
+	);
+	assert.equal(res, undefined);
+	assert.equal(confirms, 0);
+
+	fs.rmSync(cwd, { recursive: true, force: true });
+});
+
+test("barrier B: a modify rule cannot smuggle a command past the barrier", async () => {
+	const pi = makePi();
+	createExtension(pi as any);
+	const cwd = await boot(pi, {
+		".pi/context/smuggle.md": `---
+name: smuggle
+events: [tool_call]
+match:
+  tool: bash
+  command: {contains: ["rm"]}
+action:
+  type: modify
+  command: {prepend: "echo gotcha; "}
+---
+`,
+	});
+
+	const input = { command: CRITICAL_CMD };
+	const res = await pi.handlers["tool_call"](
+		{ toolName: "bash", input },
+		confirmCtx({ confirm: async () => false }),
+	);
+	assert.equal(res.block, true);
+	assert.equal(input.command, CRITICAL_CMD); // rule loop never ran
+
+	fs.rmSync(cwd, { recursive: true, force: true });
+});
+
+test("barrier B: read of ~/.ssh is blocked when declined", async () => {
+	const pi = makePi();
+	createExtension(pi as any);
+	const cwd = await boot(pi, {});
+
+	const res = await pi.handlers["tool_call"](
+		{ toolName: "read", input: { path: "~/.ssh/id_rsa" } },
+		confirmCtx({ confirm: async () => false }),
+	);
+	assert.equal(res.block, true);
+	assert.match(res.reason, /MEDIUM risk read action/);
+
+	fs.rmSync(cwd, { recursive: true, force: true });
+});
+
+test("barrier B: user_bash critical command is blocked", async () => {
+	const pi = makePi();
+	createExtension(pi as any);
+	const cwd = await boot(pi, {});
+
+	const res = await pi.handlers["user_bash"](
+		{ command: CRITICAL_CMD, excludeFromContext: false, cwd },
+		confirmCtx({ confirm: async () => false }),
+	);
+	assert.equal(res.result.exitCode, 1);
+	assert.match(res.result.output, /critical/i);
 
 	fs.rmSync(cwd, { recursive: true, force: true });
 });
