@@ -317,3 +317,35 @@ test("scp without a secret path -> no exfil finding", () => {
   const sr = scanCommand("scp -r ./dist user@example.com:/srv/app");
   assert.ok(!sr.findings.some((x) => x.id === "cmd-secret-exfil"));
 });
+
+// --- interpreter inline eval (H-6) ---
+
+test("H-6: interpreter inline eval is never none (opaque payload)", () => {
+  const sr = scanCommand(`python3 -c 'import os; os.system("id")'`);
+  assert.ok(["medium", "high", "critical"].includes(sr.level), `got ${sr.level}`);
+});
+
+test("H-6: interpreter eval with destructive token inside payload -> high finding", () => {
+  const sr = scanCommand(`node -e "require('child_process').execSync('rm -rf /tmp/x')"`);
+  const f = sr.findings.find((x) => x.id === "cmd-interp-eval");
+  assert.ok(f && f.severity === "high");
+  // single high finding aggregates to medium (weights: 10 <= 12 ceiling)
+  assert.ok(["medium", "high"].includes(sr.level), `got ${sr.level}`);
+});
+
+test("H-6: benign interpreter one-liner is flagged medium (FP tradeoff)", () => {
+  const sr = scanCommand(`node -e 'console.log(1)'`);
+  const f = sr.findings.find((x) => x.id === "cmd-interp-eval");
+  assert.ok(f && f.severity === "medium");
+  // level becomes medium once M-7 (any medium finding => >= medium) lands;
+  // until then a single medium finding aggregates to low.
+  assert.ok(["low", "medium"].includes(sr.level), `got ${sr.level}`);
+});
+
+test("H-6: php -r and node -p inline eval are flagged too", () => {
+  for (const cmd of [`php -r 'system("id");'`, `node -p '1+1'`]) {
+    const sr = scanCommand(cmd);
+    const f = sr.findings.find((x) => x.id === "cmd-interp-eval");
+    assert.ok(f, cmd);
+  }
+});

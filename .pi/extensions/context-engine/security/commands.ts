@@ -68,7 +68,6 @@ const DL_TOOLS_RE = /\b(curl|wget|nc|ncat)\b/i;
 const URL_RE = /https?:\/\/[^\s'"<>|&;)]+/i;
 const LOCAL_URL_RE = /https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?\//i;
 const SHELL_RE = /(^|[;&\s])((?:ba|z|da|k|a|c|tc)?sh|pwsh|powershell|fish)(\s|$)/i;
-const RM_RE = /rm\s+-[a-z]*(?:rf|fr)[a-z]*\s+/i;
 const RM_ROOT_RE = /rm\s+-[a-z]*(?:rf|fr)[a-z]*\s+(\/\*|\/(?![/\w])|~(?![/\w])|\$HOME(?![/\w]))/i;
 const RM_DEV_RE = /rm\s+-[a-z]*(?:rf|fr)[a-z]*\s+(?:\.\/)?(?:node_modules|dist|build|\.next|coverage|target|out|\.cache|tmp|\.venv)(?:\/|$|\s)/i;
 const DD_ZERO_RE = /\bdd\b[^|;&]*if=\/dev\/zero[^|;&]*of=\/dev\//i;
@@ -89,6 +88,11 @@ const GLOBAL_INSTALL_RE =
 const GIT_CLONE_RE = /\bgit\s+clone\b/i;
 const SCP_RE = /\bscp\b/i;
 const B64_RE = /\b(?:base64\s+-[a-z]*d\b|openssl\s+base64\s+-[a-z]*d\b)/i;
+// Inline eval flags: -c (python; php -c is a config path, flagged fail-safe),
+// -e (node/perl/ruby), -p (node print, php), -r (php run). Long forms
+// (--eval) and no-space forms are out of scope (residual, documented).
+const INTERP_RE = /\b(?:node|python|python2|python3|perl|ruby|php)\s+-[a-z]*[cepr][a-z]*\s+/i;
+const INTERP_DANGER_RE = /rm\s+-|curl\b|wget\b|base64|chmod|chown|sudo|exec|spawn|system\s*\(|eval\s*\(|https?:\/\//i;
 
 // File-mediated exec (H-4): files written (or chmod +x'ed) earlier in the same
 // command string and executed later, whatever the separator (`|`, `&&`, `;`).
@@ -177,6 +181,17 @@ function classifySegment(text: string): Finding[] {
   }
   if (B64_RE.test(text)) {
     out.push(mkFinding("cmd-base64", "obfuscation", "info", "medium", excerpt));
+  }
+  if (INTERP_RE.test(text)) {
+    out.push(
+      mkFinding(
+        "cmd-interp-eval",
+        "command",
+        INTERP_DANGER_RE.test(text) ? "high" : "medium",
+        "medium",
+        excerpt,
+      ),
+    );
   }
   return out;
 }
