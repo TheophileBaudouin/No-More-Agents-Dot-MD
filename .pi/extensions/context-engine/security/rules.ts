@@ -170,13 +170,21 @@ const IMPERATIVE_RE =
 const DANGEROUS_RE =
   /\b(?:bash|sh|shell|curl|wget|python|python3|node|npx|chmod|chown|sudo|rm|execute|powershell|pwsh|cmd(\.exe)?|\/bin\/|`|\$\(|eval|exec)\b|~\/\.ssh/i;
 
-// Evasive chars an attacker can insert to break trigger phrases: zero-width,
-// directional marks (LRM/RLM), word joiner, bidi controls, C0/C1 controls
-// (tabs/newlines excluded: line structure is meaningful). Two views: stripped
-// (evasive char inside a word) and evasive-char-as-space (replacing a space).
-// Signatures found only in a normalized view are an evasion attempt => >= medium.
-const EVASION_CHARS =
-  /[\u200b-\u200f\u2060-\u2064\u061c\u034f\u00ad\ufeff\u202a-\u202e\u2066-\u2069\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/g;
+const EVASION_CLASS =
+  "[\\u200b-\\u200f\\u2060-\\u2064\\u061c\\u034f\\u00ad\\ufeff\\u202a-\\u202e\\u2066-\\u2069\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f\\u007f-\\u009f]";
+const EVASION_CHARS = new RegExp(EVASION_CLASS, "g");
+const EVASION_PRESENT = new RegExp(EVASION_CLASS);
+
+/** Words at position >= 2 in any signature pattern. The right side of a
+ * line-break-split trigger must START with one of these — cheap pre-filter
+ * so the pair scan only runs where a split phrase is actually possible. */
+const PAIR_SPLIT_WORDS = new Set<string>();
+for (const sig of SIGNATURES) {
+  for (const pat of sig.patterns) {
+    const words = pat.split(" ");
+    for (let i = 1; i < words.length; i++) PAIR_SPLIT_WORDS.add(words[i]);
+  }
+}
 
 function classifyLine(line: string): { imperative: boolean; dangerous: boolean } {
   return {
@@ -239,6 +247,67 @@ export function scanRules(
         );
         break; // one finding per signature per line
       }
+    }
+  }
+  // H-3: a trigger split across a line break is still one phrase for the model
+  // (markdown renders it as a single line). Pair scan: only patterns that
+  // match the joined pair but neither line alone are reported here (per-line
+  // hits are already findings). Cross-line splits are deliberate evasions:
+  // imperative/dangerous pairs get high (prompt even before M-7), others keep
+  // a medium floor (prompt once M-7 aggregates any medium finding >= medium).
+  for (let li = 0; li < lines.length - 1; li++) {
+    const a = lines[li].toLowerCase();
+    const b = lines[li + 1].toLowerCase();
+    // Cheap pre-filter: the right side of a split trigger must start with a
+    // mid-pattern word; otherwise no pattern can complete across the break.
+    const bHead = /^[a-z]+/.exec(b.trimStart())?.[0] ?? "";
+    if (!PAIR_SPLIT_WORDS.has(bHead)) continue;
+    const joined = a + " " + b;
+    const evasive = EVASION_PRESENT.test(joined);
+    const stripped = evasive ? joined.replace(EVASION_CHARS, "") : joined;
+    const spaced = evasive ? joined.replace(EVASION_CHARS, " ") : joined;
+    // H-2 views of each line: a pattern matched on one line only via a
+    // normalized view is already a per-line finding — don't re-report it here.
+    const nA = evasive ? a.replace(EVASION_CHARS, "") : a;
+    const nAsp = evasive ? a.replace(EVASION_CHARS, " ") : a;
+    const nB = evasive ? b.replace(EVASION_CHARS, "") : b;
+    const nBsp = evasive ? b.replace(EVASION_CHARS, " ") : b;
+    for (const sig of SIGNATURES) {
+      let hit = false;
+      for (const pat of sig.patterns) {
+        if (
+          a.includes(pat) ||
+          b.includes(pat) ||
+          nA.includes(pat) ||
+          nAsp.includes(pat) ||
+          nB.includes(pat) ||
+          nBsp.includes(pat)
+        ) {
+          hit = false;
+          break; // signature already reported by the per-line scan
+        }
+        if (stripped.includes(pat) || spaced.includes(pat)) {
+          hit = true;
+          break;
+        }
+      }
+      if (!hit) continue;
+      const lineNo = li + 1 + lineOffset;
+      const pairText = lines[li].trim() + " | " + lines[li + 1].trim();
+      const ctx = classifyLine(pairText);
+      const severity: Severity =
+        ctx.imperative || ctx.dangerous ? "high" : "medium";
+      findings.push(
+        mkFinding(
+          sig.id,
+          sig.category,
+          severity,
+          severity === "high" ? "high" : "medium",
+          `${opts.label ? opts.label + " " : ""}lines ${lineNo}-${lineNo + 1}: ${pairText.slice(0, 80)}`,
+          { line: lineNo, column: 1 },
+        ),
+      );
+      break; // one finding per signature per pair
     }
   }
   return findings;
