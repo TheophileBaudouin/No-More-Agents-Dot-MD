@@ -96,3 +96,15 @@ test("M-3: isCurrent rejects a file whose content changed since the gate hash", 
   assert.equal(isCurrent(allowed, hashes, "a.md", "content B"), false); // swapped after gate
   assert.equal(isCurrent(allowed, hashes, "b.md", "content A"), false); // not gated
 });
+
+test("L-1: approval leaves no stale .tmp files behind", (t) => {
+  const file = tmpFile();
+  t.after(() => fs.rmSync(path.dirname(file), { recursive: true, force: true }));
+  loadTrust(file);
+  approve("/x/a.md", "a", "low", "user");
+  approve("/x/b.md", "b", "low", "user"); // second write exercises the rename path
+  const leftovers = fs
+    .readdirSync(path.dirname(file))
+    .filter((f) => f.endsWith(".tmp"));
+  assert.deepEqual(leftovers, []);
+});

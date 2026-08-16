@@ -98,15 +98,20 @@ function saveStore(map: Map<string, TrustEntry>): void {
   const file = trustFile;
   const data = JSON.stringify(Object.fromEntries(map), null, 2) + "\n";
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  const tmp = `${file}.tmp`;
+  // Unique tmp (pid + time): two pi sessions never clobber each other's tmp
+  // (last-writer-wins on the final rename remains possible — documented, no
+  // lock: losing an approval is fail-closed, never fail-open).
+  const tmp = `${file}.${process.pid}.${Date.now().toString(36)}.tmp`;
   try {
     fs.writeFileSync(tmp, data, { mode: 0o600 });
     fs.renameSync(tmp, file);
-  } finally {
+  } catch (err) {
+    // Never fatal: keep the in-memory store; the next write retries.
+    console.warn(`[security] trust store write failed: ${(err as Error).message}`);
     try {
       fs.unlinkSync(tmp); // no-op after a successful rename
     } catch {
-      /* tmp already renamed */
+      /* tmp already gone */
     }
   }
 }
