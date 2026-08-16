@@ -1,7 +1,7 @@
 /** Hidden-markdown scanner: HTML comments, link smuggling, code-block exclusion. */
 
 import { mkFinding, type Finding, type Severity } from "./types.ts";
-import { scanRules } from "./rules.ts";
+import { scanRules, scanExternalRefs } from "./rules.ts";
 import { makePosIndex } from "./position.ts";
 
 export type HiddenText = { text: string; line: number; column: number };
@@ -117,18 +117,27 @@ export function scanMarkdown(raw: string): Finding[] {
       columnOffset: c.column - 1,
       label: "html comment",
     });
-    if (hits.length === 0) continue;
-    const worst = worstSeverity(hits);
-    findings.push(
-      mkFinding(
-        "md-comment-instr",
-        "prompt-injection",
-        worst === "high" || worst === "critical" ? "high" : "medium",
-        worst === "high" ? "high" : "medium",
-        hits[0].evidence,
-        { line: hits[0].line, column: hits[0].column },
-      ),
-    );
+    if (hits.length > 0) {
+      const worst = worstSeverity(hits);
+      findings.push(
+        mkFinding(
+          "md-comment-instr",
+          "prompt-injection",
+          worst === "high" || worst === "critical" ? "high" : "medium",
+          worst === "high" ? "high" : "medium",
+          hits[0].evidence,
+          { line: hits[0].line, column: hits[0].column },
+        ),
+      );
+    }
+    // F5: external references are analyzed inside comments too — a comment is
+    // rendered nowhere, so URL+instructions there is pure hidden injection.
+    for (const f of scanExternalRefs(c.text, {
+      lineOffset: c.line - 1,
+      label: "html comment",
+    })) {
+      findings.push(f);
+    }
   }
   for (const l of findMarkdownLinks(raw)) {
     const hits = scanRules(l.text, {
