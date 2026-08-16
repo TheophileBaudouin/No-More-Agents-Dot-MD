@@ -1082,6 +1082,27 @@ test("gate: medium file declined -> skipped with warning notify", async () => {
 	fs.rmSync(cwd, { recursive: true, force: true });
 });
 
+test("gate: oversized (>5MB) rule file is skipped, never loaded (F14)", async () => {
+	const pi = makePi();
+	createExtension(pi as any);
+	const cwd = makeProject({
+		".pi/context/huge.md": "a".repeat(6 * 1024 * 1024),
+	});
+	const { ctx, notifyCalls } = makeCtx({ cwd, hasUI: true });
+	await pi.handlers["session_start"]({}, ctx);
+	assert.ok(
+		notifyCalls.some((n) =>
+			/huge\.md: too large to scan \(6 MB\) — not loaded/.test(n.message),
+		),
+	);
+
+	const sent = listRules(pi);
+	await pi.commands["nma"].handler("", ctx);
+	assert.ok(!sent.some((c) => c.includes("huge"))); // not loaded
+
+	fs.rmSync(cwd, { recursive: true, force: true });
+});
+
 test("gate: /nma trust approves a blocked critical file, untrust re-blocks", async () => {
 	const pi = makePi();
 	createExtension(pi as any);

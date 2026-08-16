@@ -117,19 +117,21 @@ export default function (pi: ExtensionAPI) {
 	}
 
 	/**
-	 * Best-effort git tracking check: 0 = tracked, 1 = untracked,
-	 * anything else (no repo, git missing) = unknown. Never throws.
+	 * Best-effort git tracking check, batched: ONE `git ls-files` per gate
+	 * run instead of one spawn per file (F14). Paths are relative to `dir`
+	 * (git reports them from the current directory). undefined = no repo or
+	 * git missing (unknown). Never throws.
 	 */
-	function gitTrackedOf(dir: string, abs: string): boolean | undefined {
+	function listGitTracked(dir: string): Set<string> | undefined {
 		try {
-			const r = spawnSync(
-				"git",
-				["-C", dir, "ls-files", "--error-unmatch", "--", abs],
-				{ stdio: "ignore", timeout: 2000 },
+			const r = spawnSync("git", ["-C", dir, "ls-files"], {
+				encoding: "utf8",
+				timeout: 2000,
+			});
+			if (r.status !== 0) return undefined;
+			return new Set(
+				r.stdout.split("\n").filter(Boolean).map((f) => path.join(dir, f)),
 			);
-			if (r.status === 0) return true;
-			if (r.status === 1) return false;
-			return undefined;
 		} catch {
 			return undefined;
 		}
@@ -151,9 +153,26 @@ export default function (pi: ExtensionAPI) {
 		const hashes = new Map<string, string>();
 		const blocked: string[] = [];
 		if (!fs.existsSync(dir)) return { allowed, hashes };
+		// F14: one git spawn per gate, shared by every file's provenance.
+		const gitTracked = listGitTracked(dir);
 		for (const f of fs.readdirSync(dir)) {
 			if (!f.endsWith(".md") || f.toLowerCase() === "readme.md") continue;
 			const abs = path.join(dir, f);
+			// F14: size cap — a multi-MB blob is not a rule file. Fail-closed:
+			// skipped files never load, and the notify makes the skip visible.
+			let st: fs.Stats;
+			try {
+				st = fs.statSync(abs);
+			} catch (err) {
+				console.error(`[${BRAND}] ${f}: cannot stat: ${(err as Error).message}`);
+				continue;
+			}
+			if (st.size > 5_000_000) {
+				const msg = `[${BRAND}] ${f}: too large to scan (${Math.ceil(st.size / 1048576)} MB) — not loaded`;
+				if (ctx?.hasUI && ctx.ui?.notify) ctx.ui.notify(msg, "warning");
+				else console.log(msg);
+				continue;
+			}
 			let raw: string;
 			try {
 				raw = fs.readFileSync(abs, "utf8");
@@ -200,7 +219,7 @@ export default function (pi: ExtensionAPI) {
 				prov = provenance(abs, {
 					isProjectTrusted: ctx?.isProjectTrusted?.() ?? true,
 					mtimeMs: fs.statSync(abs).mtimeMs,
-					gitTracked: gitTrackedOf(dir, abs),
+					gitTracked: gitTracked?.has(abs),
 				});
 			} catch {
 				/* best-effort: keep user */

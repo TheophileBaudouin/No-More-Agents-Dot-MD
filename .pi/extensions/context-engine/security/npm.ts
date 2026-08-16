@@ -192,6 +192,12 @@ function cacheGet(key: string): unknown {
   return e.data;
 }
 
+/** F14: bound the cache — evict the oldest entry (Map order = insertion) at 200. */
+function cacheSet(key: string, data: unknown): void {
+  if (cache.size >= 200) cache.delete(cache.keys().next().value!);
+  cache.set(key, { ts: Date.now(), data });
+}
+
 async function registryMeta(name: string, fetchFn: FetchFn): Promise<RegistryMeta | null> {
   const key = `reg:${name}`;
   const hit = cacheGet(key);
@@ -204,7 +210,7 @@ async function registryMeta(name: string, fetchFn: FetchFn): Promise<RegistryMet
     const json: unknown = await res.json();
     if (typeof json !== "object" || json === null) return null;
     const meta = extractRegistryMeta(json as Record<string, unknown>);
-    cache.set(key, { ts: Date.now(), data: meta });
+    cacheSet(key, meta);
     return meta;
   } catch {
     return null; // network failure / timeout / invalid JSON: never "safe"
@@ -232,7 +238,7 @@ async function osvBatch(names: string[], fetchFn: FetchFn): Promise<void> {
       const vulns = Array.isArray((r as { vulns?: unknown } | undefined)?.vulns)
         ? (r as { vulns: unknown[] }).vulns
         : [];
-      cache.set(`osv:${uncached[i]}`, { ts: Date.now(), data: vulns });
+      cacheSet(`osv:${uncached[i]}`, vulns);
     }
   } catch {
     // API failure: no signal

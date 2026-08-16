@@ -316,8 +316,12 @@ export function scanCommand(command: string): ScanResult {
       const isB64Decode = B64_RE.test(seg.text);
       return { seg, isExecTarget, isDl, isB64Decode, pipedToExec: false };
     });
-    for (let i = 0; i < segData.length; i++) {
-      segData[i].pipedToExec = segData.slice(i + 1).some((s) => s.isExecTarget);
+    // F14: right-to-left suffix pass — pipedToExec[i] is "any exec target
+    // after i", same semantics as the old slice(i+1).some(...) in O(n).
+    let execAfter = false;
+    for (let i = segData.length - 1; i >= 0; i--) {
+      segData[i].pipedToExec = execAfter;
+      execAfter = execAfter || segData[i].isExecTarget;
     }
     const chainNetwork = segData.some((s) => DL_TOOLS_RE.test(s.seg.text));
     // M-4: secret material via read verb, < redirect, or tar operand.
