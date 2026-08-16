@@ -23,6 +23,20 @@ export type Provenance = "user" | "downloaded" | "untrusted-project";
 
 const DOWNLOAD_AGE_MS = 3600000; // 1 hour
 
+// Hard cap on findings per file: bounds memory and evidence output. The
+// aggregate still saturates well below this (2000 medium => critical), so
+// capping never hides a real risk level.
+const MAX_FINDINGS = 2000;
+
+/** Loop push (never spread): a 300KB decoded blob yields ~225k findings —
+ * `push(...arr)` would blow the call stack (RangeError). */
+function pushAll(target: Finding[], src: Finding[]): void {
+  for (const f of src) {
+    if (target.length >= MAX_FINDINGS) return;
+    target.push(f);
+  }
+}
+
 /**
  * Classify where a rule file came from, from best-effort signals.
  * 'downloaded' wins (a recent untracked file is, by definition, not authored
@@ -74,28 +88,31 @@ export function scanContext(raw: string, _file: string): ScanResult {
   const text = raw.replace(/\r\n/g, "\n");
   const findings: Finding[] = [];
   const { decoded, findings: encFindings } = findDecodedBlobs(text);
-  findings.push(...encFindings);
-  findings.push(...scanUnicode(text));
+  pushAll(findings, encFindings);
+  pushAll(findings, scanUnicode(text, MAX_FINDINGS));
   for (const blob of decoded) {
-    findings.push(...scanUnicode(blob.text));
+    if (findings.length >= MAX_FINDINGS) break;
+    pushAll(findings, scanUnicode(blob.text, MAX_FINDINGS));
   }
   // Hidden-content scan runs on the code-block-stripped text; the visible
   // injection scan additionally strips html comments (anti-false-positive).
   const noCode = stripCodeBlocks(text);
   const visible = stripHtmlComments(noCode);
-  findings.push(...scanMarkdown(noCode));
-  findings.push(...scanRules(visible));
-  findings.push(...scanExternalRefs(visible));
+  pushAll(findings, scanMarkdown(noCode));
+  pushAll(findings, scanRules(visible));
+  pushAll(findings, scanExternalRefs(visible));
   // H-1: fenced content is injected verbatim into the system prompt — scan it.
   // Cap: code blocks are often legit examples => severity capped at high,
   // terminal cleared. Result: instruction-like fenced content is never silent
   // (>= medium => confirm) but never auto-critical.
   for (const cb of findCodeBlocks(text)) {
+    if (findings.length >= MAX_FINDINGS) break;
     const label = cb.closed ? "code block" : "unclosed code block";
     for (const f of [
       ...scanRules(cb.text, { lineOffset: cb.line, label }),
       ...scanExternalRefs(cb.text, { lineOffset: cb.line, label }),
     ]) {
+      if (findings.length >= MAX_FINDINGS) break;
       if (f.severity === "critical" || f.terminal) {
         f.severity = "high";
         f.score = 10;
@@ -105,9 +122,10 @@ export function scanContext(raw: string, _file: string): ScanResult {
     }
   }
   for (const blob of decoded) {
+    if (findings.length >= MAX_FINDINGS) break;
     const label = `decoded ${blob.from}`;
-    findings.push(...scanRules(blob.text, { label }));
-    findings.push(...scanExternalRefs(blob.text, { label }));
+    pushAll(findings, scanRules(blob.text, { label }));
+    pushAll(findings, scanExternalRefs(blob.text, { label }));
   }
   return {
     level: aggregate(findings),

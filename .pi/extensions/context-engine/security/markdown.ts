@@ -2,23 +2,12 @@
 
 import { mkFinding, type Finding, type Severity } from "./types.ts";
 import { scanRules } from "./rules.ts";
+import { makePosIndex } from "./position.ts";
 
 export type HiddenText = { text: string; line: number; column: number };
 
 function blankKeepNewlines(s: string): string {
   return s.replace(/[^\n]/g, " ");
-}
-
-function posAt(raw: string, index: number): { line: number; column: number } {
-  let line = 1;
-  let lastNl = -1;
-  for (let i = 0; i < index; i++) {
-    if (raw.charCodeAt(i) === 10) {
-      line++;
-      lastNl = i;
-    }
-  }
-  return { line, column: index - lastNl };
 }
 
 /** Blank html comments (keeping line structure) so visible text can be scanned. */
@@ -77,13 +66,14 @@ export function findCodeBlocks(
 /** Html comments with their 1-based position. */
 export function findHtmlComments(raw: string): HiddenText[] {
   const out: HiddenText[] = [];
+  const pos = makePosIndex(raw);
   const re = /<!--[\s\S]*?(?:-->|$)/g;
   for (const m of raw.matchAll(re)) {
     const inner = m[0].slice(
       4,
       m[0].endsWith("-->") ? m[0].length - 3 : m[0].length,
     );
-    const p = posAt(raw, m.index + 4);
+    const p = pos(m.index + 4);
     out.push({ text: inner, line: p.line, column: p.column });
   }
   return out;
@@ -94,9 +84,10 @@ export function findMarkdownLinks(
   raw: string,
 ): Array<HiddenText & { url: string }> {
   const out: Array<HiddenText & { url: string }> = [];
+  const pos = makePosIndex(raw);
   const re = /\[([^\]]{1,200})\]\((https?:\/\/[^)\s]{1,500})\)/g;
   for (const m of raw.matchAll(re)) {
-    const p = posAt(raw, m.index);
+    const p = pos(m.index);
     out.push({ text: m[1], url: m[2], line: p.line, column: p.column });
   }
   return out;

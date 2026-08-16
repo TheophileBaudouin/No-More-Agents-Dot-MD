@@ -81,3 +81,20 @@ test("scan 100 rule files under the time budget", () => {
   console.log(`[perf] ${dt.toFixed(1)} ms for 100 files (${(dt / 100).toFixed(3)} ms/file)`);
   assert.ok(dt < 300, `scan took ${dt.toFixed(1)} ms — over the 300 ms budget`);
 });
+
+test("M-1: 20k base64 blobs scan under 1s (posAt was O(n^2))", () => {
+  const blob = "aGVsbG8gd29ybGQh"; // decodes to "hello world!"
+  const big = Array.from({ length: 20000 }, () => blob).join("\n"); // ~340KB
+  const t0 = performance.now();
+  const r = scanContext(big, "big.md");
+  const ms = performance.now() - t0;
+  console.log(`[perf] ${ms.toFixed(1)} ms for 20k blobs`);
+  assert.ok(ms < 1000, `took ${ms.toFixed(1)}ms`);
+  assert.ok(r.level !== undefined);
+});
+
+test("M-2: 300KB of 'A' does not throw and findings stay bounded", () => {
+  const r = scanContext("A".repeat(300000), "a.md");
+  assert.ok(r.findings.length <= 2100, `got ${r.findings.length}`);
+  assert.ok(["low", "medium", "high", "critical"].includes(r.level));
+});

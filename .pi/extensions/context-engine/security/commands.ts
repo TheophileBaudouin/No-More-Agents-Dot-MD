@@ -247,7 +247,10 @@ export function scanCommand(command: string): ScanResult {
       // Recursion is bounded: findDecodedBlobs depth 1, each blob scanned once.
       if (!d.isB64Decode) {
         const { decoded } = findDecodedBlobs(d.seg.text, 1);
-        for (const blob of decoded) findings.push(...scanCommand(blob.text).findings);
+        // Loop push (never spread): a decoded blob may hold many segments.
+        for (const blob of decoded) {
+          for (const f of scanCommand(blob.text).findings) findings.push(f);
+        }
       }
       // H-5: base64-decoded data piped to a shell = obfuscated code execution.
       if (d.isB64Decode && d.pipedToShell) {

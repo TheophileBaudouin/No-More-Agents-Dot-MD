@@ -2,6 +2,7 @@
 
 import { Buffer } from "node:buffer";
 import { mkFinding, type Finding } from "./types.ts";
+import { makePosIndex } from "./position.ts";
 
 export type DecodedBlob = { from: string; text: string; line?: number; column?: number };
 
@@ -52,18 +53,6 @@ function decodeUrl(candidate: string): string | null {
   }
 }
 
-function posAt(raw: string, index: number): { line: number; column: number } {
-  let line = 1;
-  let lastNl = -1;
-  for (let i = 0; i < index; i++) {
-    if (raw.charCodeAt(i) === 10) {
-      line++;
-      lastNl = i;
-    }
-  }
-  return { line, column: index - lastNl };
-}
-
 function analyzeBlob(b: RawBlob, findings: Finding[]): void {
   const kind = b.from
     .split(">")
@@ -98,19 +87,14 @@ function analyzeBlob(b: RawBlob, findings: Finding[]): void {
 }
 
 function extractBlobs(raw: string): RawBlob[] {
-  const out: RawBlob[] = [];
-  const taken: Array<[number, number]> = [];
-  const add = (b: RawBlob) => {
-    if (taken.some(([s, e]) => b.start < e && s < b.end)) return;
-    taken.push([b.start, b.end]);
-    out.push(b);
-  };
+  const pos = makePosIndex(raw);
+  const candidates: RawBlob[] = [];
   const collect = (re: RegExp, from: string, decode: (s: string) => string | null) => {
     for (const m of raw.matchAll(re)) {
       const text = decode(m[0]);
       if (text === null) continue;
-      const p = posAt(raw, m.index);
-      add({
+      const p = pos(m.index);
+      candidates.push({
         from,
         text,
         line: p.line,
@@ -124,6 +108,17 @@ function extractBlobs(raw: string): RawBlob[] {
   collect(B64_RE, "base64", decodeB64);
   collect(URL_RE, "url-encoding", decodeUrl);
   collect(HEX_ESC_RE, "hex-escapes", decodeHexEscapes);
+  // Dedup overlapping spans: stable sort by start (ties keep collection order,
+  // matching the old first-wins rule) then linear sweep — O(k log k) instead
+  // of the old O(k^2) `taken.some` per candidate.
+  candidates.sort((a, b) => a.start - b.start);
+  const out: RawBlob[] = [];
+  let prev: RawBlob | null = null;
+  for (const b of candidates) {
+    if (prev !== null && b.start < prev.end) continue; // overlaps a kept blob
+    out.push(b);
+    prev = b;
+  }
   return out;
 }
 

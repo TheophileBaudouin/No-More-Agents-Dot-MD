@@ -81,13 +81,16 @@ function firstCombining(raw: string): number | null {
 
 const hex = (cp: number): string => `U+${cp.toString(16).toUpperCase()}`;
 
-/** Scan raw for unicode anomalies; findings carry 1-based line/column. */
-export function scanUnicode(raw: string): Finding[] {
+/** Scan raw for unicode anomalies; findings carry 1-based line/column.
+ * `maxResults` bounds pathological outputs (e.g. 225k NUL-control findings
+ * from a decoded 300KB base64 blob) — the aggregate saturates well below. */
+export function scanUnicode(raw: string, maxResults = Infinity): Finding[] {
   const cps = Array.from(raw);
   const findings: Finding[] = [];
   let line = 1;
   let col = 1;
   for (let i = 0; i < cps.length; i++) {
+    if (findings.length >= maxResults) break;
     const cp = cps[i].codePointAt(0)!;
     if (cp === 0x0a) {
       line++;
