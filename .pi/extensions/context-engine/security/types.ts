@@ -67,10 +67,23 @@ export function aggregate(findings: Finding[]): RiskLevel {
     }
   }
   if (total === 0) return "none";
-  if (total <= 4) return "low";
-  if (total <= 12) return "medium";
-  if (total <= 24) return "high";
-  return "critical";
+  const level: RiskLevel =
+    total <= 4 ? "low" : total <= 12 ? "medium" : total <= 24 ? "high" : "critical";
+  // M-7: a single medium+ finding is a real signal — never hide it under low.
+  // (A lone high/critical finding already aggregates to >= medium via weight,
+  // this guards the medium tier and any future re-weighting.)
+  if (
+    level === "low" &&
+    findings.some(
+      (f) =>
+        f.severity === "medium" ||
+        f.severity === "high" ||
+        f.severity === "critical",
+    )
+  ) {
+    return "medium";
+  }
+  return level;
 }
 
 /** Finding factory shared by all scanners; score is derived from WEIGHTS. */

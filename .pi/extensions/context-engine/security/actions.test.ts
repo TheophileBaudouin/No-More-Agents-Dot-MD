@@ -14,9 +14,9 @@ test("bash download piped to shell -> critical", () => {
   assert.equal(r.level, "critical");
 });
 
-test("bash curl download -> low level, medium finding", () => {
+test("bash curl download -> medium level, medium finding (M-7)", () => {
   const r = scanAction("bash", { command: "curl -s https://example.com/file" });
-  assert.equal(r.level, "low"); // single medium finding aggregates to low (3 <= 4)
+  assert.equal(r.level, "medium"); // M-7: a single medium finding never aggregates below medium
   assert.ok(r.findings.some((f) => f.id === "cmd-download" && f.severity === "medium"));
 });
 

@@ -62,3 +62,7 @@ test("mkFinding derives score from WEIGHTS", () => {
   assert.equal(f("critical").score, 25);
   assert.equal(f("high", { terminal: true }).terminal, true);
 });
+
+test("M-7: a single medium-severity finding never aggregates below medium", () => {
+  assert.equal(aggregate([f("medium")]), "medium");
+});

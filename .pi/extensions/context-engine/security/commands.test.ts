@@ -357,9 +357,8 @@ test("H-6: benign interpreter one-liner is flagged medium (FP tradeoff)", () => 
   const sr = scanCommand(`node -e 'console.log(1)'`);
   const f = sr.findings.find((x) => x.id === "cmd-interp-eval");
   assert.ok(f && f.severity === "medium");
-  // level becomes medium once M-7 (any medium finding => >= medium) lands;
-  // until then a single medium finding aggregates to low.
-  assert.ok(["low", "medium"].includes(sr.level), `got ${sr.level}`);
+  // M-7: one medium finding aggregates to medium (never silent low).
+  assert.equal(sr.level, "medium");
 });
 
 test("H-6: php -r and node -p inline eval are flagged too", () => {

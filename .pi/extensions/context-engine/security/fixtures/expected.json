@@ -217,8 +217,9 @@
     "mode": "command"
   },
   "supply-chain/npx-unknown.md": {
-    "expected": "low",
-    "mode": "command"
+    "expected": "medium",
+    "mode": "command",
+    "note": "npx/bunx/deno run = supply-chain signal (any invocation); one medium finding => medium per M-7"
   },
   "supply-chain/git-dependency.md": {
     "expected": "low",
@@ -241,8 +242,9 @@
     "mode": "context"
   },
   "false-positives/readme-quote.md": {
-    "expected": "low",
-    "mode": "context"
+    "expected": "medium",
+    "mode": "context",
+    "note": "quoted attack in a doc: one medium finding => medium per M-7 policy (FP discipline: <= medium)"
   },
   "false-positives/security-doc-ssh.md": {
     "expected": "none",
