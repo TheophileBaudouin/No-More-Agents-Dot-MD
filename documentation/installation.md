@@ -26,13 +26,13 @@ pi install https://github.com/TheophileBaudouin/No-More-Agents-Dot-MD
 > **Security note:** pi packages run with full system access, like any pi
 > extension. This package has **zero runtime dependencies** and makes **no
 > network calls at load time** — it reads `.pi/context/` and reacts to session
-> events. Two optional behaviors do touch the network, both disabled by
-> default or easy to turn off: on install commands the scanner can query the
-> npm registry + OSV (`NMA_NETWORK=0` disables all of it), and an
-> opt-in URLhaus host-reputation check on shell commands that reference
-> public http(s) URLs (`NMA_URLHAUS_KEY`, off by default; `NMA_NETWORK=0`
-> disables it too). It also writes a small trust file
-> (`~/.pi/agent/nma-trust.json`). Still, the usual rule applies: review
+> events. Two behaviors can touch the network: on install commands the
+> scanner queries the npm registry + OSV unless `NMA_NETWORK=0` (which
+> disables all network calls), and an opt-in URLhaus host-reputation check
+> on shell commands that reference public http(s) URLs (`NMA_URLHAUS_KEY`,
+> off by default; `NMA_NETWORK=0` disables it too). It also writes a small
+> trust file (`~/.pi/agent/nma-trust.json`). Still, the usual rule applies:
+> review
 > source code before trusting any third-party package.
 
 ### What the install does NOT do
