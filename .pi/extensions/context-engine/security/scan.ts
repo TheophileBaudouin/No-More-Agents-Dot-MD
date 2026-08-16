@@ -176,7 +176,7 @@ export function scanFrontmatter(meta: Record<string, unknown>): ScanResult {
         if (val === "") continue;
         const network = /https?:\/\/|\b(curl|wget|nc|ncat|fetch)\b/i.test(val);
         const exec =
-          /\|\s*(?:ba|z|da)?sh\b|\b(?:ba|z|da)?sh\s+-c\b|\b(node|python|python3|perl|ruby|eval|execute)\b|\bbase64\s+-d\b/i.test(
+          /\|\s*(?:ba|z|da)?sh\b|\b(?:ba|z|da)?sh\s+-c\b|\b(node|python|python3|perl|ruby|eval|execute)\b|\bbase64\s+-d\b|\$\(|`/i.test(
             val,
           );
         if (network && exec) {

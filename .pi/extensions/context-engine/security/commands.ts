@@ -74,8 +74,11 @@ const DL_TOOLS_RE = /\b(curl|wget|nc|ncat)\b/i;
 const URL_RE = /https?:\/\/[^\s'"<>|&;)]+/i;
 const LOCAL_URL_RE =
   /https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?\//i;
+// `/` and `(` boundaries: /bin/sh, $(sh …) now count as shells.
 const SHELL_RE =
-  /(^|[;&\s])((?:ba|z|da|k|a|c|tc)?sh|pwsh|powershell|fish)(\s|$)/i;
+  /(^|[/;&\s(])((?:ba|z|da|k|a|c|tc)?sh|pwsh|powershell|fish)(\s|$)/i;
+// Interpreters are exec targets when a download is piped to them.
+const INTERP_TARGET_RE = /(^|[/;&\s(])(python3?|node|perl|ruby)(\s|$)/i;
 // Home/root/cwd wipes: ~ and $HOME targets are always home expansion after
 // `rm -rf `; any absolute target is a wipe unless under throwaway /tmp;
 // bare `.`/`..`/`./` wipes the cwd. Scoped dev dirs (./node_modules) untouched.
@@ -105,6 +108,10 @@ const INSTALL_RE =
 const GLOBAL_INSTALL_RE =
   /\b(?:npm\s+-g\s+(?:install|i)\b|npm\s+(?:install|i)\s+-g\b|pnpm\s+add\s+-g\b|yarn\s+global\s+add\b|apt(?:-get)?\s+install\b|dnf\s+install\b|yum\s+install\b|zypper\s+install\b|brew\s+install\b)/i;
 const GIT_CLONE_RE = /\bgit\s+clone\b/i;
+// F2: a clone followed by an exec of a file from the clone. Residual: bare
+// relative exec (`git clone && ./setup`) is not covered.
+const CLONE_EXEC_RE =
+  /(?:^|[;&|(]\s*)(?:bash|sh|zsh|source|node|python3?)\s+[^\s;&|"'<>]+/i;
 const SCP_RE = /\bscp\b/i;
 const B64_RE = /\b(?:base64\s+-[a-z]*d\b|openssl\s+base64\s+-[a-z]*d\b)/i;
 // M-4: exfil without a read verb — secret material as redirect input
@@ -253,6 +260,10 @@ function classifySegment(text: string): Finding[] {
       ),
     );
   }
+  // F2: command substitution with a network download inside it.
+  if (/\$\(|`/.test(text) && DL_TOOLS_RE.test(text) && URL_RE.test(text)) {
+    out.push(mkFinding("cmd-net-subst", "command", "high", "high", excerpt));
+  }
   return out;
 }
 
@@ -276,16 +287,14 @@ export function scanCommand(command: string): ScanResult {
   const findings: Finding[] = [];
   for (const chain of toChains(splitPipeline(command))) {
     const segData = chain.map((seg) => {
-      const isShell = SHELL_RE.test(seg.text);
-      const isDownload =
-        DL_TOOLS_RE.test(seg.text) &&
-        URL_RE.test(seg.text) &&
-        !LOCAL_URL_RE.test(seg.text);
+      const isExecTarget =
+        SHELL_RE.test(seg.text) || INTERP_TARGET_RE.test(seg.text);
+      const isDl = DL_TOOLS_RE.test(seg.text) && URL_RE.test(seg.text);
       const isB64Decode = B64_RE.test(seg.text);
-      return { seg, isShell, isDownload, isB64Decode, pipedToShell: false };
+      return { seg, isExecTarget, isDl, isB64Decode, pipedToExec: false };
     });
     for (let i = 0; i < segData.length; i++) {
-      segData[i].pipedToShell = segData.slice(i + 1).some((s) => s.isShell);
+      segData[i].pipedToExec = segData.slice(i + 1).some((s) => s.isExecTarget);
     }
     const chainNetwork = segData.some((s) => DL_TOOLS_RE.test(s.seg.text));
     // M-4: secret material via read verb, < redirect, or tar operand.
@@ -302,7 +311,7 @@ export function scanCommand(command: string): ScanResult {
         }
       }
       // H-5: base64-decoded data piped to a shell = obfuscated code execution.
-      if (d.isB64Decode && d.pipedToShell) {
+      if (d.isB64Decode && d.pipedToExec) {
         findings.push(
           mkFinding(
             "cmd-obf-exec",
@@ -316,18 +325,19 @@ export function scanCommand(command: string): ScanResult {
           ),
         );
       }
-      if (d.isDownload && (d.isShell || d.pipedToShell)) {
+      // F2: download -> exec is terminal whatever the boundary (localhost too).
+      if (d.isDl && (d.isExecTarget || d.pipedToExec)) {
         findings.push(
           mkFinding("cmd-dl-exec", "command", "critical", "high", excerpt, {
             terminal: true,
           }),
         );
-      } else if (d.isDownload) {
+      } else if (d.isDl && !LOCAL_URL_RE.test(d.seg.text)) {
         findings.push(
           mkFinding("cmd-download", "command", "medium", "medium", excerpt),
         );
       }
-      if (d.isDownload && SECRET_UPLOAD_RE.test(d.seg.text)) {
+      if (d.isDl && !LOCAL_URL_RE.test(d.seg.text) && SECRET_UPLOAD_RE.test(d.seg.text)) {
         findings.push(
           mkFinding(
             "cmd-secret-exfil",
@@ -341,7 +351,7 @@ export function scanCommand(command: string): ScanResult {
       }
       for (const f of classifySegment(d.seg.text)) {
         findings.push(
-          d.pipedToShell ? { ...f, severity: bump(f.severity) } : f,
+          d.pipedToExec ? { ...f, severity: bump(f.severity) } : f,
         );
       }
     }
@@ -357,6 +367,18 @@ export function scanCommand(command: string): ScanResult {
         ),
       );
     }
+  }
+  // F2: clone + exec of a file from the clone, whatever the separator.
+  if (GIT_CLONE_RE.test(command) && CLONE_EXEC_RE.test(command)) {
+    findings.push(
+      mkFinding(
+        "cmd-clone-exec",
+        "command",
+        "medium",
+        "medium",
+        command.trim().replace(/\s+/g, " ").slice(0, 80),
+      ),
+    );
   }
   const fm = fileMediatedExec(command);
   if (fm) findings.push(fm);

@@ -331,7 +331,7 @@ const DOWNLOAD_VERBS = /\b(download|wget|curl|save)\b/i;
 const STRONG_INSTR = /\b(instructions?|prompt|rules?)\b/i;
 const WEAK_INSTR = /\b(guide|tutorial)\b/i;
 const EXEC_TOKENS =
-  /\|\s*(?:ba|z|da)?sh\b|\b(?:ba|z|da)?sh\s+-c\b|\b(execute|eval)\b/i;
+  /\|\s*(?:\/[\w./-]*)?(?:ba|z|da)?sh\b|\b(?:ba|z|da)?sh\s+-c\b|\b(execute|eval)\b/i;
 const DOC_URL_RE = /\.(md|txt|rst|pdf)(?:[?#]|$)/i;
 
 /**
