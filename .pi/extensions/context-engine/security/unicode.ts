@@ -2,7 +2,11 @@
 
 import { mkFinding, type Finding } from "./types.ts";
 
-const ZERO_WIDTH = new Set([0x200b, 0x200c, 0x200d, 0xfeff]);
+const ZERO_WIDTH = new Set([
+  0x200b, 0x200c, 0x200d, 0x200e, 0x200f, // ZWSP, ZWNJ, ZWJ, LRM, RLM
+  0x2060, 0x2061, 0x2062, 0x2063, 0x2064, // word joiner + invisible operators
+  0x061c, 0x034f, 0x00ad, 0xfeff, // ALM, CGJ, soft hyphen, BOM
+]);
 const TAG_START = 0xe0000;
 const TAG_END = 0xe007f;
 const BIDI_RANGES: ReadonlyArray<readonly [number, number]> = [

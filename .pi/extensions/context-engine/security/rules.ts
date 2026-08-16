@@ -170,6 +170,14 @@ const IMPERATIVE_RE =
 const DANGEROUS_RE =
   /\b(?:bash|sh|shell|curl|wget|python|python3|node|npx|chmod|chown|sudo|rm|execute|powershell|pwsh|cmd(\.exe)?|\/bin\/|`|\$\(|eval|exec)\b|~\/\.ssh/i;
 
+// Evasive chars an attacker can insert to break trigger phrases: zero-width,
+// directional marks (LRM/RLM), word joiner, bidi controls, C0/C1 controls
+// (tabs/newlines excluded: line structure is meaningful). Two views: stripped
+// (evasive char inside a word) and evasive-char-as-space (replacing a space).
+// Signatures found only in a normalized view are an evasion attempt => >= medium.
+const EVASION_CHARS =
+  /[\u200b-\u200f\u2060-\u2064\u061c\u034f\u00ad\ufeff\u202a-\u202e\u2066-\u2069\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/g;
+
 function classifyLine(line: string): { imperative: boolean; dangerous: boolean } {
   return {
     imperative: IMPERATIVE_RE.test(line),
@@ -192,17 +200,30 @@ export function scanRules(
   for (let li = 0; li < lines.length; li++) {
     const line = lines[li];
     const lower = line.toLowerCase();
+    // H-2: match against the raw line and two normalized views.
+    const stripped = lower.replace(EVASION_CHARS, "");
+    const spaced = lower.replace(EVASION_CHARS, " ");
     for (const sig of SIGNATURES) {
       for (const pat of sig.patterns) {
-        const idx = lower.indexOf(pat);
+        let idx = lower.indexOf(pat);
+        let evaded = false;
+        if (idx === -1) {
+          idx = stripped.indexOf(pat);
+          if (idx === -1) idx = spaced.indexOf(pat);
+          evaded = idx !== -1;
+        }
         if (idx === -1) continue;
         const ctx = classifyLine(line);
         const severity: Severity =
-          ctx.imperative && ctx.dangerous
-            ? "high"
-            : ctx.imperative || ctx.dangerous
-              ? "medium"
-              : "low";
+          evaded
+            ? ctx.imperative || ctx.dangerous
+              ? "high"
+              : "medium"
+            : ctx.imperative && ctx.dangerous
+              ? "high"
+              : ctx.imperative || ctx.dangerous
+                ? "medium"
+                : "low";
         const confidence = severity === "high" ? "high" : severity === "medium" ? "medium" : "low";
         const lineNo = li + 1 + lineOffset;
         const excerpt = line.trim().slice(0, 80);
