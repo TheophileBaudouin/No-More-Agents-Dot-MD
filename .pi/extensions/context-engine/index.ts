@@ -435,7 +435,12 @@ export default function (pi: ExtensionAPI) {
 			}
 		}
 		if (chunks.length === 0) return;
-		const injected = chunks.map((r) => `## ${r.name}\n\n${r.body}`).join("\n\n");
+		const injected = chunks
+			.map(
+				(r) =>
+					`## ${r.name}\n\n<user-context source="${r.name}">\n${r.body}\n</user-context>`,
+			)
+			.join("\n\n");
 		return { systemPrompt: `${event.systemPrompt}\n\n${injected}` };
 	});
 
@@ -595,7 +600,9 @@ export default function (pi: ExtensionAPI) {
 				case "inject": {
 					if (r.action.once && injectedOnce.has(r.name)) break;
 					if (r.action.once) injectedOnce.add(r.name);
-					pendingInject.push(`## ${r.name}\n\n${r.body}`);
+					pendingInject.push(
+						`## ${r.name}\n\n<user-context source="${r.name}">\n${r.body}\n</user-context>`,
+					);
 					notifyInject(ctx, r);
 					log(r.name, "tool_result", "inject");
 					break;

@@ -156,6 +156,10 @@ test("before_agent_start injects matched context into the system prompt", async 
 	});
 	assert.match(res.systemPrompt, /# UI Conventions/);
 	assert.match(res.systemPrompt, /Use existing components/);
+	assert.match(
+		res.systemPrompt,
+		/<user-context source="ui-context">[\s\S]*<\/user-context>/,
+	);
 	assert.ok(res.systemPrompt.startsWith("base"));
 
 	// unmatched prompt → no injection
