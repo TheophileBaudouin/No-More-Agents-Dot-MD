@@ -340,7 +340,11 @@ export function scanExternalRefs(
       const start = m.index ?? 0;
       const before = line.slice(Math.max(0, start - 80), start);
       const after = line.slice(start + url.length, start + url.length + 80);
-      const ctx = before + " " + after;
+      // M-5: instruction context includes the adjacent lines (split-evasion).
+      // Bounded: ±1 whole line, O(lines) total — no sliding window.
+      const prev = li > 0 ? lines[li - 1] : "";
+      const next = li < lines.length - 1 ? lines[li + 1] : "";
+      const ctx = before + " " + after + " " + prev + " " + next;
       const lineNo = li + 1 + lineOffset;
       const excerpt = line.trim().slice(0, 80);
       const evidence = `${opts.label ? opts.label + " " : ""}line ${lineNo}: ${excerpt}`;
