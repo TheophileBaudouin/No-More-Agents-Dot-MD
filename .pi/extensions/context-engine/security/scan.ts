@@ -17,6 +17,7 @@ import {
   findCodeBlocks,
 } from "./markdown.ts";
 import { scanRules, scanExternalRefs } from "./rules.ts";
+import { scanCommand } from "./commands.ts";
 
 export type Provenance = "user" | "downloaded" | "untrusted-project";
 
@@ -183,6 +184,19 @@ export function scanFrontmatter(meta: Record<string, unknown>): ScanResult {
               }`,
             ),
           );
+        }
+      }
+      // H-7: the prepend/append IS code that runs on every matching user_bash —
+      // scan it with the full command scanner (destructive, exfil, dl-exec...).
+      for (const key of ["prepend", "append"]) {
+        const val = typeof cmd[key] === "string" ? cmd[key] : "";
+        if (val === "") continue;
+        const sr = scanCommand(val);
+        for (const f of sr.findings) {
+          findings.push({
+            ...f,
+            evidence: `frontmatter action.modify.command.${key}: ${f.evidence}`,
+          });
         }
       }
     }
