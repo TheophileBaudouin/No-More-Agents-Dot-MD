@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkFinding } from "./types.ts";
 import { nudgeLevel, provenance } from "./scan.ts";
+import { mkFinding } from "./types.ts";
 
 const NOW = new Date("2026-08-16T12:00:00Z");
 const RECENT = NOW.getTime() - 10 * 60 * 1000; // 10 minutes ago
