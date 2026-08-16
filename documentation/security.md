@@ -250,11 +250,25 @@ as a tested, ready-to-integrate building block.
   whose instruction sits 80+ characters away on the same line keeps a bounded
   window (anti-false-positive, the adjacent-line context still applies).
 - **The calibration corpus is the permanent gate** (`security/fixtures/`,
-  75 Markdown files + `expected.json`, including an intentional
-  `false-positives/` set): any scoring change must keep it green — benign ≤
-  `low`, false-positives ≤ `medium`, malicious ≥ `high`. Performance budget
-  tests keep a 100-file load under 300 ms and adversarial inputs bounded
-  (20 000 blobs < 1 s, 300 KB decode-bomb capped).
+  77 Markdown files + `expected.json`, including an intentional
+  `false-positives/` set and two documented `benign/` pins): any scoring
+  change must keep it green — benign ≤ `low`, false-positives ≤ `medium`,
+  malicious ≥ `high`. Performance budget tests keep a 100-file load under
+  300 ms and adversarial inputs bounded (20 000 blobs < 1 s, 300 KB
+  decode-bomb capped).
+- **Accepted FPs are pinned, not hidden.** Two `benign/` fixtures exceed the
+  `low` cap on purpose, each with an explicit manifest note (a benign fixture
+  may only exceed `low` when its `expected.json` note documents why):
+  `benign/use-bash-to.md` — "Use bash to run the tests." is imperative with a
+  dangerous verb, so each occurrence is a `high` finding and the file scans
+  `high`; this is an intentional escalation: an armed guard prompts (confirm),
+  it never blocks, and a regression in either direction would break the pin.
+  `benign/base64-binary.md` — a decoded binary blob (PNG-style chunk stream,
+  control octets 0x00-0x07) skips the unicode scan (F13: mostly non-printable
+  decoded blobs are binary data, not hidden text; per-byte `uni-ctrl`
+  findings would otherwise flood to critical); the pin `medium` comes from
+  the decoded-blob command-token finding (embedded "bash" identifier inside
+  the binary payload) and stays — decoding signals are never fully silent.
 - Fail-safe defaults everywhere: scan error at the gate → `high`/skip, never a
   silent load; no UI → confirm means `block`; a scanner exception at the
   action barrier **blocks** the action (fail-closed, never a silent allow).

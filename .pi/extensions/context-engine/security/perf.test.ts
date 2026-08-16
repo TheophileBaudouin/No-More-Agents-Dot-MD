@@ -96,5 +96,8 @@ test("M-1: 20k base64 blobs scan under 1s (posAt was O(n^2))", () => {
 test("M-2: 300KB of 'A' does not throw and findings stay bounded", () => {
   const r = scanContext("A".repeat(300000), "a.md");
   assert.ok(r.findings.length <= 2100, `got ${r.findings.length}`);
-  assert.ok(["low", "medium", "high", "critical"].includes(r.level));
+  // F13: 'A'*300k decodes to a NUL-byte blob — binary, so the unicode scan
+  // is skipped and the level is honestly none; the point of this test is
+  // boundedness and no throw, not the level.
+  assert.ok(["none", "low", "medium", "high", "critical"].includes(r.level));
 });

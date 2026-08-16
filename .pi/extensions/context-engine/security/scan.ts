@@ -110,6 +110,18 @@ export function nudgeLevel(
   return NEXT_LEVEL[NEXT_LEVEL.indexOf(level) + 1];
 }
 
+/** F13: decoded blobs that are mostly control chars are binary data, not
+ * hidden text — scanning them floods uni-ctrl findings (one per byte). */
+function isLikelyBinary(t: string): boolean {
+  const n = Math.min(t.length, 1000);
+  let bad = 0;
+  for (let i = 0; i < n; i++) {
+    const cp = t.codePointAt(i)!;
+    if ((cp < 0x20 && cp !== 0x09 && cp !== 0x0a && cp !== 0x0d) || cp === 0x7f) bad++;
+  }
+  return n > 0 && bad / n > 0.1;
+}
+
 /** Scan a context rule file (raw markdown). `file` is reserved for provenance. */
 export function scanContext(raw: string, _file: string): ScanResult {
   const text = raw.replace(/\r\n/g, "\n");
@@ -119,7 +131,9 @@ export function scanContext(raw: string, _file: string): ScanResult {
   sink.pushAll(encFindings);
   sink.pushAll(scanUnicode(text, MAX_FINDINGS));
   for (const blob of decoded) {
-    sink.pushAll(scanUnicode(blob.text, MAX_FINDINGS));
+    if (!isLikelyBinary(blob.text)) {
+      sink.pushAll(scanUnicode(blob.text, MAX_FINDINGS));
+    }
   }
   // Hidden-content scan runs on the code-block-stripped text; the visible
   // injection scan additionally strips html comments (anti-false-positive).

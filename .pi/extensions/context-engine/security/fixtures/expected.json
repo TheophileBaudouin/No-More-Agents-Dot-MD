@@ -15,6 +15,11 @@
     "expected": "none",
     "mode": "context"
   },
+  "benign/use-bash-to.md": {
+    "expected": "high",
+    "mode": "context",
+    "note": "accepted FP: imperative+dangerous phrasing; confirm under armed guard, not a block"
+  },
   "benign/frontmatter-notify.md": {
     "expected": "none",
     "mode": "context"
@@ -38,6 +43,11 @@
   "benign/api-conventions.md": {
     "expected": "none",
     "mode": "context"
+  },
+  "benign/base64-binary.md": {
+    "expected": "medium",
+    "mode": "context",
+    "note": "F13: decoded binary skips unicode scan"
   },
   "prompt-injection/ignore-previous.md": {
     "expected": "high",
