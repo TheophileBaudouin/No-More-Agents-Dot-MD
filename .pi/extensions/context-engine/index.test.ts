@@ -1086,7 +1086,17 @@ test("gate: /nma trust approves a blocked critical file, untrust re-blocks", asy
 	const pi = makePi();
 	createExtension(pi as any);
 	const cwd = makeProject({ ".pi/context/evil.md": EVIL_MODIFY });
-	const { ctx } = makeCtx({ cwd, hasUI: true });
+	const confirms: Array<[string, string]> = [];
+	const { ctx } = makeCtx({
+		cwd,
+		hasUI: true,
+		ui: {
+			confirm: async (title: string, msg: string) => {
+				confirms.push([title, msg]);
+				return true;
+			},
+		},
+	});
 	await pi.handlers["session_start"]({}, ctx);
 
 	let sent = listRules(pi);
@@ -1094,6 +1104,8 @@ test("gate: /nma trust approves a blocked critical file, untrust re-blocks", asy
 	assert.ok(!sent.some((c) => c.includes("evil"))); // blocked
 
 	await pi.commands["nma"].handler("trust evil.md", ctx);
+	assert.equal(confirms.length, 1); // F10: high/critical trust always confirms
+	assert.match(confirms[0][0], /^Trust evil\.md\? scanned CRITICAL$/);
 	sent = listRules(pi);
 	await pi.commands["nma"].handler("", ctx);
 	assert.ok(sent.some((c) => c.includes("evil"))); // now loaded
@@ -1102,6 +1114,57 @@ test("gate: /nma trust approves a blocked critical file, untrust re-blocks", asy
 	sent = listRules(pi);
 	await pi.commands["nma"].handler("", ctx);
 	assert.ok(!sent.some((c) => c.includes("evil"))); // blocked again
+
+	fs.rmSync(cwd, { recursive: true, force: true });
+});
+
+test("/nma trust: declining the confirm does not trust a critical file", async () => {
+	const pi = makePi();
+	createExtension(pi as any);
+	const cwd = makeProject({ ".pi/context/evil.md": EVIL_MODIFY });
+	const { ctx, notifyCalls } = makeCtx({
+		cwd,
+		hasUI: true,
+		ui: { confirm: async () => false },
+	});
+	await pi.handlers["session_start"]({}, ctx); // blocked at load
+	await pi.commands["nma"].handler("trust evil.md", ctx);
+	assert.ok(
+		notifyCalls.some((n) => /not trusted: evil\.md/.test(n.message)),
+		JSON.stringify(notifyCalls.map((n) => n.message)),
+	);
+	const sent = listRules(pi);
+	await pi.commands["nma"].handler("", ctx);
+	assert.ok(!sent.some((c) => c.includes("evil"))); // still blocked
+
+	fs.rmSync(cwd, { recursive: true, force: true });
+});
+
+test("/nma trust: without UI a critical file is refused unless --yes", async () => {
+	const pi = makePi();
+	createExtension(pi as any);
+	const cwd = makeProject({ ".pi/context/evil.md": EVIL_MODIFY });
+	const { ctx } = makeCtx({ cwd, hasUI: false });
+	await pi.handlers["session_start"]({}, ctx);
+
+	const logs: string[] = [];
+	const orig = console.log;
+	console.log = (m: unknown) => void logs.push(String(m));
+	try {
+		await pi.commands["nma"].handler("trust evil.md", ctx);
+	} finally {
+		console.log = orig;
+	}
+	assert.ok(
+		logs.some((l) => /refusing to trust a critical file without UI/.test(l)),
+		JSON.stringify(logs),
+	);
+
+	// --yes overrides the no-UI refusal (the trust handler's escape hatch).
+	await pi.commands["nma"].handler("trust evil.md --yes", ctx);
+	const sent = listRules(pi);
+	await pi.commands["nma"].handler("", ctx);
+	assert.ok(sent.some((c) => c.includes("evil"))); // trusted via --yes
 
 	fs.rmSync(cwd, { recursive: true, force: true });
 });

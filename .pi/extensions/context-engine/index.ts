@@ -828,7 +828,12 @@ export default function (pi: ExtensionAPI) {
 				return;
 			}
 			if (cmd === "trust" || cmd === "untrust") {
-				const name = parts.slice(1).join(" ");
+				const yesFlag = parts.includes("--yes");
+				// --yes is trust-only syntax; the untrust path stays untouched.
+				const name = parts
+					.slice(1)
+					.filter((p) => (cmd === "trust" ? p !== "--yes" : true))
+					.join(" ");
 				if (!name) {
 					notify(`usage: /nma ${cmd} <file>`, "error");
 					return;
@@ -854,14 +859,58 @@ export default function (pi: ExtensionAPI) {
 					notify(`cannot read ${file}: ${(err as Error).message}`, "error");
 					return;
 				}
-				let level: RiskLevel = "high"; // fail-safe default on scan error
+				// F10: a scan failure is never a silent approve at a fabricated
+				// level — refuse unless the user explicitly overrides with --yes.
+				let scan: ScanResult = {
+					level: "high", // fail-safe, reachable only via --yes
+					findings: [
+						mkFinding(
+							"scan-error",
+							"command",
+							"high",
+							"high",
+							"scan failed",
+						),
+					],
+				};
 				try {
-					level = mergeScans(
+					scan = mergeScans(
 						scanContext(raw, path.basename(file)),
 						scanFrontmatter(frontmatterMeta(raw, path.basename(file))),
-					).level;
+					);
 				} catch (err) {
-					console.error(`[${BRAND}] ${file}: scan error: ${(err as Error).message}`);
+					console.error(
+						`[${BRAND}] ${file}: scan error: ${(err as Error).message}`,
+					);
+					if (!yesFlag) {
+						notify(
+							"scan failed — refusing to trust (add --yes to override)",
+							"error",
+						);
+						return;
+					}
+				}
+				const { level, findings } = scan;
+				// F10: trusting a high/critical file always confirms; without a
+				// UI the only way through is an explicit --yes.
+				if (level === "critical" || level === "high") {
+					const details = fmtFindings(findings);
+					if (ctx.hasUI) {
+						const ok = await ctx.ui.confirm(
+							`Trust ${path.basename(file)}? scanned ${level.toUpperCase()}`,
+							details,
+						);
+						if (!ok) {
+							notify(`not trusted: ${path.basename(file)}`, "warning");
+							return;
+						}
+					} else if (!yesFlag) {
+						notify(
+							`refusing to trust a ${level} file without UI — add --yes`,
+							"error",
+						);
+						return;
+					}
 				}
 				try {
 					approve(file, raw, level, "user");
