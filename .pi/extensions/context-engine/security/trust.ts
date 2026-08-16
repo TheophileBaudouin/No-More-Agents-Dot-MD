@@ -83,6 +83,17 @@ export function status(file: string, raw: string): "trusted" | "changed" | "unkn
   return entry.sha256 === currentHash(raw) ? "trusted" : "changed";
 }
 
+/** Gate->loader filter: file must be allowed AND its content must still hash
+ * to what the gate scanned (closes the scan/load TOCTOU). Fail-closed. */
+export function isCurrent(
+  allowed: Set<string>,
+  hashes: Map<string, string>,
+  file: string,
+  raw: string,
+): boolean {
+  return allowed.has(file) && hashes.get(file) === currentHash(raw);
+}
+
 function saveStore(map: Map<string, TrustEntry>): void {
   const file = trustFile;
   const data = JSON.stringify(Object.fromEntries(map), null, 2) + "\n";

@@ -30,7 +30,7 @@ import {
 	scanFrontmatter,
 	type Provenance,
 } from "./security/scan.ts";
-import { approve, revoke, status } from "./security/trust.ts";
+import { approve, currentHash, isCurrent, revoke, status } from "./security/trust.ts";
 import {
 	aggregate,
 	mkFinding,
@@ -126,19 +126,21 @@ export default function (pi: ExtensionAPI) {
 	async function securityGate(
 		dir: string,
 		ctx: ExtensionContext | undefined,
-	): Promise<Set<string>> {
+	): Promise<{ allowed: Set<string>; hashes: Map<string, string> }> {
 		// Rebuild scan state each gate run: stale entries (deleted files) must
 		// not keep the command guard armed after the last untrusted file is gone.
 		lastScan.clear();
 		const allowed = new Set<string>();
+		const hashes = new Map<string, string>();
 		const blocked: string[] = [];
-		if (!fs.existsSync(dir)) return allowed;
+		if (!fs.existsSync(dir)) return { allowed, hashes };
 		for (const f of fs.readdirSync(dir)) {
 			if (!f.endsWith(".md") || f.toLowerCase() === "readme.md") continue;
 			const abs = path.join(dir, f);
 			let raw: string;
 			try {
 				raw = fs.readFileSync(abs, "utf8");
+				hashes.set(f, currentHash(raw)); // T1 content pin, re-checked at load (M-3)
 			} catch (err) {
 				console.error(`[${BRAND}] ${f}: cannot read: ${(err as Error).message}`);
 				continue;
@@ -231,13 +233,13 @@ export default function (pi: ExtensionAPI) {
 			if (ctx?.hasUI && ctx.ui?.notify) ctx.ui.notify(msg, "error");
 			else console.log(msg);
 		}
-		return allowed;
+		return { allowed, hashes };
 	}
 
 	async function reload(cwd: string, ctx?: ExtensionContext) {
 		const dir = path.join(cwd, CONTEXT_DIR);
-		const allowed = await securityGate(dir, ctx);
-		rules = loadContextDir(dir, (f) => allowed.has(f));
+		const { allowed, hashes } = await securityGate(dir, ctx);
+		rules = loadContextDir(dir, (f, raw) => isCurrent(allowed, hashes, f, raw));
 		injectedOnce = new Set<string>();
 		pendingInject = [];
 		guardArmed.clear();

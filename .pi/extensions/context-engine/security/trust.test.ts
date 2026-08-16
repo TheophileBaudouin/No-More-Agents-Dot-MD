@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { loadTrust, approve, revoke, status, currentHash } from "./trust.ts";
+import { loadTrust, approve, revoke, status, currentHash, isCurrent } from "./trust.ts";
 
 function tmpFile(): string {
   return path.join(fs.mkdtempSync(path.join(os.tmpdir(), "nma-trust-")), "nma-trust.json");
@@ -87,4 +87,12 @@ test("corrupt file -> warn + start empty, approve overwrites it", (t) => {
 
 test("currentHash is sha256 hex of the raw string", () => {
   assert.equal(currentHash("abc"), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+});
+
+test("M-3: isCurrent rejects a file whose content changed since the gate hash", () => {
+  const allowed = new Set(["a.md"]);
+  const hashes = new Map([["a.md", currentHash("content A")]]);
+  assert.equal(isCurrent(allowed, hashes, "a.md", "content A"), true);
+  assert.equal(isCurrent(allowed, hashes, "a.md", "content B"), false); // swapped after gate
+  assert.equal(isCurrent(allowed, hashes, "b.md", "content A"), false); // not gated
 });
