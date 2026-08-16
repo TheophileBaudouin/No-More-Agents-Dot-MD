@@ -123,17 +123,47 @@ function extractBlobs(raw: string): RawBlob[] {
 }
 
 /**
+ * Join base64 wrapped at line breaks (PEM style, 64 columns — what models
+ * emit). Every line must be a real b64 fragment (>= 16 chars) so prose and
+ * hex dumps are untouched. Applied at the top level only; positions inside
+ * the joined regions are approximate (the joined text is shorter).
+ */
+function unwrapB64(text: string): string {
+  return text.replace(
+    /(?:^|\n)([A-Za-z0-9+/]{16,}={0,2}(?:\n[A-Za-z0-9+/]{16,}={0,2})+)(?=\n|$)/g,
+    (m) => m.replace(/\n/g, ""),
+  );
+}
+
+/**
  * Find decodable blobs in raw, recursing into decoded text up to `depth`.
  * The original string is never modified; results are returned separately.
+ * F9: depth 4 (was 2) so triple-encoded payloads reach their plaintext;
+ * depth exhaustion is signalled (obf-depth-exhausted) instead of silent.
  */
 export function findDecodedBlobs(
   raw: string,
-  depth = 2,
+  depth = 4,
 ): { decoded: DecodedBlob[]; findings: Finding[] } {
   const decoded: DecodedBlob[] = [];
   const findings: Finding[] = [];
   const walk = (text: string, level: number, parentFrom: string): void => {
-    if (level <= 0) return;
+    if (level <= 0) {
+      // F9: still encodable at the depth limit — say so instead of letting
+      // the payload degrade to info findings (or none).
+      if (extractBlobs(text).length > 0) {
+        findings.push(
+          mkFinding(
+            "obf-depth-exhausted",
+            "obfuscation",
+            "medium",
+            "medium",
+            "still-encoded content at decode depth limit",
+          ),
+        );
+      }
+      return;
+    }
     for (const b of extractBlobs(text)) {
       const from = parentFrom === "" ? b.from : `${parentFrom}>${b.from}`;
       decoded.push({ from, text: b.text, line: b.line, column: b.column });
@@ -141,6 +171,6 @@ export function findDecodedBlobs(
       walk(b.text, level - 1, from);
     }
   };
-  walk(raw, depth, "");
+  walk(unwrapB64(raw), depth, "");
   return { decoded, findings };
 }
