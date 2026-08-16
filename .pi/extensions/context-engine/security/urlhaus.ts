@@ -34,7 +34,7 @@ export async function checkUrlhausHost(
 }
 
 /** Public http(s) hosts in a command — localhost/private IPs excluded. */
-const HOST_URL_RE = /https?:\/\/(?:[^/@\s]+@)?([A-Za-z0-9][A-Za-z0-9.-]*)(?::\d+)?/g;
+const HOST_URL_RE = /https?:\/\/(?:[^/@\s]+@)?([A-Za-z0-9][A-Za-z0-9.-]*)(?::\d+)?/gi;
 const PRIVATE_HOST_RE =
   /^(localhost|0\.0\.0\.0|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.)/i;
 
