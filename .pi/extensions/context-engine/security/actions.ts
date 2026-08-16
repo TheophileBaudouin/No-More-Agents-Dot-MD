@@ -69,7 +69,10 @@ export function isInstallCommand(command: string): boolean {
   return extractTargets(command).length > 0;
 }
 
-/** Network enrichment only ever runs for install commands. */
+/** Cheap hint for "this command mentions a URL" — enrichment decides. */
+const URL_HINT_RE = /https?:\/\//i;
+
+/** Network enrichment runs for install commands and for commands with URLs. */
 export function needsNetworkCheck(_sr: ScanResult, command: string): boolean {
-  return isInstallCommand(command);
+  return isInstallCommand(command) || URL_HINT_RE.test(command);
 }
