@@ -26,16 +26,42 @@ const DOWNLOAD_AGE_MS = 3600000; // 1 hour
 
 // Hard cap on findings per file: bounds memory and evidence output. The
 // aggregate still saturates well below this (2000 medium => critical), so
-// capping never hides a real risk level.
-const MAX_FINDINGS = 2000;
+// capping never hides a real risk level. Terminal/critical findings are
+// exempt (overflow bounded by MAX_TERMINAL): the cap must never mask the
+// finding that decides the file's level.
+export const MAX_FINDINGS = 2000;
 
-/** Loop push (never spread): a 300KB decoded blob yields ~225k findings —
- * `push(...arr)` would blow the call stack (RangeError). */
-function pushAll(target: Finding[], src: Finding[]): void {
-  for (const f of src) {
-    if (target.length >= MAX_FINDINGS) return;
-    target.push(f);
-  }
+/** Overflow allowance for terminal/critical findings beyond MAX_FINDINGS. */
+const MAX_TERMINAL = 100;
+
+/**
+ * Findings collector: the cap drops nothing but findings that cannot change
+ * the level — terminal/critical findings always survive (overflow bounded at
+ * MAX_TERMINAL). Loop push (never spread): a 300KB decoded blob yields
+ * ~225k findings — `push(...arr)` would blow the call stack (RangeError).
+ */
+function makeSink() {
+  const findings: Finding[] = [];
+  let overflowTerminals = 0;
+  const isTerm = (f: Finding) =>
+    f.terminal === true || f.severity === "critical";
+  const push = (f: Finding): void => {
+    if (findings.length < MAX_FINDINGS) {
+      findings.push(f);
+      return;
+    }
+    if (isTerm(f) && overflowTerminals < MAX_TERMINAL) {
+      findings.push(f);
+      overflowTerminals++;
+    }
+  };
+  return {
+    findings,
+    push,
+    pushAll: (src: Finding[]) => {
+      for (const f of src) push(f);
+    },
+  };
 }
 
 /**
@@ -87,46 +113,43 @@ export function nudgeLevel(
 /** Scan a context rule file (raw markdown). `file` is reserved for provenance. */
 export function scanContext(raw: string, _file: string): ScanResult {
   const text = raw.replace(/\r\n/g, "\n");
-  const findings: Finding[] = [];
+  const sink = makeSink();
+  const { findings } = sink;
   const { decoded, findings: encFindings } = findDecodedBlobs(text);
-  pushAll(findings, encFindings);
-  pushAll(findings, scanUnicode(text, MAX_FINDINGS));
+  sink.pushAll(encFindings);
+  sink.pushAll(scanUnicode(text, MAX_FINDINGS));
   for (const blob of decoded) {
-    if (findings.length >= MAX_FINDINGS) break;
-    pushAll(findings, scanUnicode(blob.text, MAX_FINDINGS));
+    sink.pushAll(scanUnicode(blob.text, MAX_FINDINGS));
   }
   // Hidden-content scan runs on the code-block-stripped text; the visible
   // injection scan additionally strips html comments (anti-false-positive).
   const noCode = stripCodeBlocks(text);
   const visible = stripHtmlComments(noCode);
-  pushAll(findings, scanMarkdown(noCode));
-  pushAll(findings, scanRules(visible));
-  pushAll(findings, scanExternalRefs(visible));
+  sink.pushAll(scanMarkdown(noCode));
+  sink.pushAll(scanRules(visible));
+  sink.pushAll(scanExternalRefs(visible));
   // H-1: fenced content is injected verbatim into the system prompt — scan it.
   // Cap: code blocks are often legit examples => severity capped at high,
   // terminal cleared. Result: instruction-like fenced content is never silent
   // (>= medium => confirm) but never auto-critical.
   for (const cb of findCodeBlocks(text)) {
-    if (findings.length >= MAX_FINDINGS) break;
     const label = cb.closed ? "code block" : "unclosed code block";
     for (const f of [
       ...scanRules(cb.text, { lineOffset: cb.line, label }),
       ...scanExternalRefs(cb.text, { lineOffset: cb.line, label }),
     ]) {
-      if (findings.length >= MAX_FINDINGS) break;
       if (f.severity === "critical" || f.terminal) {
         f.severity = "high";
         f.score = 10;
         f.terminal = false;
       }
-      findings.push(f);
+      sink.push(f);
     }
   }
   for (const blob of decoded) {
-    if (findings.length >= MAX_FINDINGS) break;
     const label = `decoded ${blob.from}`;
-    pushAll(findings, scanRules(blob.text, { label }));
-    pushAll(findings, scanExternalRefs(blob.text, { label }));
+    sink.pushAll(scanRules(blob.text, { label }));
+    sink.pushAll(scanExternalRefs(blob.text, { label }));
   }
   return {
     level: aggregate(findings),

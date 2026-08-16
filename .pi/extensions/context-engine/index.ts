@@ -93,6 +93,13 @@ export default function (pi: ExtensionAPI) {
 		return { level: aggregate(findings), findings };
 	}
 
+	/** One-line-per-finding summary, truncated: confirm dialogs stay readable. */
+	function fmtFindings(fs: Finding[], max = 10): string {
+		const lines = fs.slice(0, max).map((f) => `- [${f.id}] ${f.evidence}`);
+		if (fs.length > max) lines.push(`… and ${fs.length - max} more`);
+		return lines.join("\n") || "(no details)";
+	}
+
 	/** Frontmatter parsed as behavior meta; a malformed one is scanned as {} (body scan still runs). */
 	function frontmatterMeta(raw: string, file: string): Record<string, unknown> {
 		try {
@@ -211,9 +218,7 @@ export default function (pi: ExtensionAPI) {
 				if (ctx?.hasUI && ctx.ui?.notify) ctx.ui.notify(msg, "error");
 				else console.log(msg);
 			} else if (ctx?.hasUI) {
-				const details =
-					scan.findings.map((x) => `- [${x.id}] ${x.evidence}`).join("\n") ||
-					"(no details)";
+				const details = fmtFindings(scan.findings);
 				const ok = await ctx.ui.confirm(`${scan.level} rule file: ${f}`, details);
 				if (ok) {
 					try {
@@ -315,9 +320,7 @@ export default function (pi: ExtensionAPI) {
 			console.log(`[${BRAND}] blocked ${tool} action (${level}, no UI): ${ids}`);
 			return `${level.toUpperCase()} risk ${tool} action blocked by security barrier — ${ids}`;
 		}
-		const details = sr.findings
-			.map((f) => `- [${f.id}] ${f.evidence}`)
-			.join("\n");
+		const details = fmtFindings(sr.findings);
 		const ok = await ctx.ui.confirm(
 			`${level} action: ${tool}`,
 			level === "critical"
