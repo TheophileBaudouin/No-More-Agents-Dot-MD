@@ -141,7 +141,7 @@ The engine also informs you without being asked (only when a UI is present):
 | `security/actions.ts` | tool-action scanning (bash-like + read/write/edit) |
 | `security/trust.ts` | trust store (path + SHA-256, atomic 0600 writes) |
 | `security/npm.ts` | npm registry + OSV enrichment for install commands |
-| `security/urlhaus.ts` | opt-in host reputation — tested, not wired into the pipeline |
+| `security/urlhaus.ts` | opt-in host reputation for shell commands at barrier B (listed host → `critical` terminal) |
 | `security/config.ts` | env overrides (`NMA_TRUST_FILE`, `NMA_NETWORK`, `NMA_URLHAUS_KEY`), network TTL/timeout |
 
 Everything a rule can say is in this page. If a capability is not listed here,

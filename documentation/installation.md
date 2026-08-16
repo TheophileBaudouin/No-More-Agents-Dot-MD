@@ -28,9 +28,10 @@ pi install https://github.com/TheophileBaudouin/No-More-Agents-Dot-MD
 > network calls at load time** — it reads `.pi/context/` and reacts to session
 > events. Two optional behaviors do touch the network, both disabled by
 > default or easy to turn off: on install commands the scanner can query the
-> npm registry + OSV (`NMA_NETWORK=0` disables all of it), and a
-> host-reputation module is opt-in (`NMA_URLHAUS_KEY`, currently not wired
-> into the decision pipeline). It also writes a small trust file
+> npm registry + OSV (`NMA_NETWORK=0` disables all of it), and an
+> opt-in URLhaus host-reputation check on shell commands that reference
+> public http(s) URLs (`NMA_URLHAUS_KEY`, off by default; `NMA_NETWORK=0`
+> disables it too). It also writes a small trust file
 > (`~/.pi/agent/nma-trust.json`). Still, the usual rule applies: review
 > source code before trusting any third-party package.
 

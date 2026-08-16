@@ -123,7 +123,8 @@ Aggregation (`aggregate`, calibrated — the fixture corpus is the gate):
 
 The provenance nudge (see below) can raise the level one step. A scan error
 never blocks loading silently: the file is treated as `high` risk and skipped.
-Network enrichment can only raise a level, on install commands only.
+Network enrichment can only raise a level — on install commands (npm/OSV) and
+on commands referencing http(s) URLs (URLhaus, opt-in).
 
 ## UX: what you see
 
@@ -210,12 +211,19 @@ API):
   `safe`, it is just no signal;
 - `NMA_NETWORK=0` disables all network enrichment.
 
-URLhaus (`security/urlhaus.ts`) is an opt-in host-reputation module gated on
-`NMA_URLHAUS_KEY`, disabled by default; API failure returns `null`, never a
-"safe" answer. Honest note: the module is currently **not wired into the
-decision pipeline** — it is dead code today (tested, ready-to-integrate, but
-never called at runtime; a grep for `checkUrlhausHost` finds only the module
-and its test). Enabling the key alone changes nothing yet.
+URLhaus (`security/urlhaus.ts`) is an opt-in host-reputation check, wired at
+**barrier B only** — barrier A and load never call it. When a shell command
+references a public http(s) host and `NMA_URLHAUS_KEY` is set, the host is
+queried against urlhaus.abuse.ch. A listed host (known malware distribution)
+adds one `critical` **terminal** finding (`cmd-urlhaus-listed`) — it confirms
+with UI, blocks without UI. A "not listed" answer adds nothing: absence of
+signal is never treated as `safe`. API failure, timeout, invalid JSON → no
+finding, level unchanged. Localhost, loopback and private-IP hosts are never
+queried; at most 5 hosts per command; definitive answers are cached 1 hour
+(failures are never cached, so a transient outage retries on the next
+command), with the same 3 s per-request timeout as npm/OSV. Disabled by
+default: without the key, zero network calls happen, and `NMA_NETWORK=0`
+disables it too.
 
 ## False positives / false negatives — the honest limits
 
