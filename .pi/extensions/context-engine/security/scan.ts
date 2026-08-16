@@ -18,6 +18,7 @@ import {
 } from "./markdown.ts";
 import { scanRules, scanExternalRefs } from "./rules.ts";
 import { scanCommand } from "./commands.ts";
+import { validateRegex } from "../match.ts";
 
 export type Provenance = "user" | "downloaded" | "untrusted-project";
 
@@ -134,9 +135,53 @@ export function scanContext(raw: string, _file: string): ScanResult {
   };
 }
 
+/**
+ * Recursively collect every `regex` string under a match spec: `any` arrays,
+ * input/command/result/cwd keys, `{contains, regex}` entries. A match spec is
+ * a plain data tree, so one generic walk covers all shapes.
+ */
+function collectMatchRegexes(node: unknown, out: string[]): void {
+  if (node === null || typeof node !== "object") return;
+  if (Array.isArray(node)) {
+    for (const item of node) collectMatchRegexes(item, out);
+    return;
+  }
+  for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+    if (k === "regex") {
+      if (typeof v === "string") out.push(v);
+      else if (Array.isArray(v)) {
+        for (const s of v) if (typeof s === "string") out.push(s);
+      }
+    } else {
+      collectMatchRegexes(v, out);
+    }
+  }
+}
+
 /** Scan parsed frontmatter as behavior (tool-hijack signals). */
 export function scanFrontmatter(meta: Record<string, unknown>): ScanResult {
   const findings: Finding[] = [];
+  // F6: user match.regex is validated at load — hostile or invalid regex
+  // files hit the gate (one high finding per invalid pattern) and never load
+  // silently. The runtime matcher additionally skips invalid patterns.
+  const matchMeta = meta.match;
+  if (matchMeta !== undefined) {
+    const regexes: string[] = [];
+    collectMatchRegexes(matchMeta, regexes);
+    for (const r of regexes) {
+      const err = validateRegex(r);
+      if (err === null) continue;
+      findings.push(
+        mkFinding(
+          "th-bad-regex",
+          "tool-hijack",
+          "high",
+          "high",
+          `match.regex rejected: ${err} (${r.slice(0, 60)})`,
+        ),
+      );
+    }
+  }
   const action = meta.action;
   if (action && typeof action === "object") {
     const a = action as Record<string, unknown>;

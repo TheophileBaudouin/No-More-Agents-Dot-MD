@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { matchRule } from "./match.ts";
+import { matchRule, validateRegex } from "./match.ts";
 
 test("no match spec matches everything", () => {
 	assert.equal(matchRule(undefined, { text: "anything" }), true);
@@ -187,4 +187,36 @@ test("any failing with another key present still evaluates that key", () => {
 	const m = { any: [{ input: { contains: ["zzz"] } }], sessionSize: 5 };
 	assert.equal(matchRule(m, { text: "hello", sessionSize: 6 }), true);
 	assert.equal(matchRule(m, { text: "hello", sessionSize: 3 }), false);
+});
+
+test("validateRegex: nested quantifiers are ReDoS-flagged", () => {
+	assert.notEqual(validateRegex("(a+)+$"), null);
+});
+
+test("validateRegex: syntax errors are flagged", () => {
+	assert.notEqual(validateRegex("(a++"), null);
+});
+
+test("validateRegex: overlong patterns are flagged", () => {
+	assert.notEqual(validateRegex("x".repeat(300)), null);
+});
+
+test("validateRegex: benign anchored alternation passes", () => {
+	assert.equal(validateRegex("^npm (install|ci)$"), null);
+});
+
+test("matchRule with an invalid regex returns false without throwing", () => {
+	const m = { command: { regex: ["(a+)+$"] } };
+	assert.equal(
+		matchRule(m, { text: "{}", tool: "bash", command: "npm install" }),
+		false,
+	);
+});
+
+test("matchRule still matches valid regexes after an invalid one", () => {
+	const m = { command: { regex: ["(a+)+$", "^git push"] } };
+	assert.equal(
+		matchRule(m, { text: "{}", tool: "bash", command: "git push origin main" }),
+		true,
+	);
 });

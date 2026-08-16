@@ -1,5 +1,26 @@
 /** Pure rule matcher. No pi imports — unit-testable with node --test. */
 
+// F6: user match.regex is validated before use — ReDoS caps + syntax check.
+// The number of patterns is bounded by the rule files, so both caches below
+// are bounded too.
+const MAX_REGEX_LEN = 200;
+const NESTED_QUANT_RE = /\([^)]*[+*][^)]*\)\s*[+*{]/;
+
+export function validateRegex(r: string): string | null {
+  if (r.length > MAX_REGEX_LEN)
+    return `regex too long (${r.length} > ${MAX_REGEX_LEN})`;
+  if (NESTED_QUANT_RE.test(r)) return "nested quantifiers (ReDoS risk)";
+  try {
+    new RegExp(r);
+  } catch (e) {
+    return `invalid regex: ${(e as Error).message}`;
+  }
+  return null;
+}
+
+const regexCache = new Map<string, RegExp>();
+const reportedBadRegex = new Set<string>();
+
 export type Subject = {
  /** Text matched against `input` patterns (prompt text or tool input JSON). */
  text: string;
@@ -40,15 +61,33 @@ function patternList(p: unknown): Array<{ contains: string[]; regex: string[] }>
  return out;
 }
 
-/** Any-of semantics: one `contains` substring OR one `regex` must hit. */
+/** Any-of semantics: one `contains` substring OR one `regex` must hit.
+ * Invalid regexes (F6) are skipped — one log per pattern, never a throw. */
 function matchPatterns(p: unknown, text: string): boolean {
  const list = patternList(p);
  if (list.length === 0) return false;
- return list.some(
-  (pat) =>
-   pat.contains.some((s) => text.toLowerCase().includes(s.toLowerCase())) ||
-   pat.regex.some((r) => new RegExp(r).test(text)),
- );
+ return list.some((pat) => {
+  if (pat.contains.some((s) => text.toLowerCase().includes(s.toLowerCase()))) {
+   return true;
+  }
+  for (const r of pat.regex) {
+   const err = validateRegex(r);
+   if (err !== null) {
+    if (!reportedBadRegex.has(r)) {
+     reportedBadRegex.add(r);
+     console.warn(`match.regex skipped (${err}): ${r.slice(0, 60)}`);
+    }
+    continue; // invalid pattern never matches
+   }
+   let re = regexCache.get(r);
+   if (re === undefined) {
+    re = new RegExp(r);
+    regexCache.set(r, re);
+   }
+   if (re.test(text)) return true;
+  }
+  return false;
+ });
 }
 
 /**

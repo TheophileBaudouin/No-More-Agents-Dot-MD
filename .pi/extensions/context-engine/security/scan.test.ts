@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
 import { scanContext, scanFrontmatter } from "./scan.ts";
+import { aggregate } from "./types.ts";
 
 test("scanContext: benign doc -> none, no findings", () => {
   const r = scanContext(
@@ -218,5 +219,59 @@ test("H-3: trigger phrase split across a newline is caught (>= medium)", () => {
   assert.ok(
     ["medium", "high", "critical"].includes(r.level),
     `got ${r.level}`,
+  );
+});
+
+test("F6: invalid match.regex -> high th-bad-regex finding", () => {
+  const r = scanFrontmatter({ match: { command: { regex: ["(a+)+$"] } } });
+  assert.ok(
+    r.findings.some(
+      (f) => f.id === "th-bad-regex" && f.severity === "high",
+    ),
+  );
+});
+
+test("F6: invalid regex nested in match.any is caught too", () => {
+  const r = scanFrontmatter({
+    match: { any: [{ command: { regex: ["(a+)+$"] } }] },
+  });
+  assert.ok(r.findings.some((f) => f.id === "th-bad-regex"));
+});
+
+test("F6: valid match.regex produces no finding", () => {
+  const r = scanFrontmatter({
+    match: { command: { regex: ["^npm (install|ci)$"] } },
+  });
+  assert.ok(!r.findings.some((f) => f.id === "th-bad-regex"));
+});
+
+test("F6 P12: hostile regex-only file hits the merged gate (never silent)", () => {
+  // The bare scanContext of P12 legitimately sees only the body (none); the
+  // merged gate (calibration-style) adds the frontmatter scan: one high
+  // th-bad-regex finding aggregates to medium per the calibrated thresholds
+  // (10 pts <= 12) — the gate confirms at medium, never a silent load.
+  const raw = `---
+name: x
+events: [tool_call]
+match:
+  command: {regex: ["(a+)+$"]}
+action:
+  type: notify
+---
+`;
+  const meta = {
+    name: "x",
+    events: ["tool_call"],
+    match: { command: { regex: ["(a+)+$"] } },
+    action: { type: "notify" },
+  };
+  const fm = scanFrontmatter(meta);
+  const level = aggregate([
+    ...scanContext(raw, "p.md").findings,
+    ...fm.findings,
+  ]);
+  assert.ok(["medium", "high", "critical"].includes(level), `got ${level}`);
+  assert.ok(
+    fm.findings.some((f) => f.id === "th-bad-regex" && f.severity === "high"),
   );
 });

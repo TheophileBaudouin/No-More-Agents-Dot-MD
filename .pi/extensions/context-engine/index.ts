@@ -98,7 +98,11 @@ export default function (pi: ExtensionAPI) {
 		try {
 			const rule = parseContextFile(raw, file);
 			if (rule)
-				return { action: rule.action } as unknown as Record<string, unknown>;
+				// action + match: the F6 gate validates user match.regex (ReDoS caps).
+				return { action: rule.action, match: rule.match } as unknown as Record<
+					string,
+					unknown
+				>;
 		} catch {
 			/* malformed frontmatter: body scan only */
 		}

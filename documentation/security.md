@@ -235,9 +235,14 @@ as a tested, ready-to-integrate building block.
   300 KB decode-bomb stays bounded without throwing.
 - **Honest limits.** Pure-homoglyph words (all non-ASCII letters) are not
   flagged — realistic payloads always mix ASCII and are caught; env-var
-  indirection (`DIR=/; rm -rf $DIR`) is not resolved; a user's own
-  `match.regex` is unbounded (ReDoS gated to files that are scanned and
-  approved); the trust store's final rename is last-writer-wins (a lost
+  indirection (`DIR=/; rm -rf $DIR`) is not resolved; user `match.regex`
+  patterns are validated at load (200-char cap, rejection of nested
+  quantifiers, syntax check): invalid patterns produce a `high` gate finding
+  (`th-bad-regex`), and the runtime matcher additionally skips invalid
+  patterns — a regex-only hostile file never loads silently, and an invalid
+  regex never throws per event. Residual: exotic slow patterns *without*
+  nested quantifiers are not fully excluded, bounded by the length cap; the
+  trust store's final rename is last-writer-wins (a lost
   approval is fail-closed, never fail-open); interpreter payloads stay opaque
   (flagged `medium` by default, `high` when they contain destructive/network
   tokens); `--eval` long forms are not covered; file-mediated upload across

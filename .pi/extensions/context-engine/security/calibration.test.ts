@@ -26,11 +26,15 @@ const manifest: Record<string, Spec> = JSON.parse(
   fs.readFileSync(path.join(FIXTURES, "expected.json"), "utf8"),
 );
 
-/** Mirror index.ts frontmatterMeta: { action } from the parsed rule, {} on failure. */
+/** Mirror index.ts frontmatterMeta: { action, match } from the parsed rule, {} on failure. */
 function metaOf(raw: string, file: string): Record<string, unknown> {
   try {
     const rule = parseContextFile(raw, file);
-    if (rule) return { action: rule.action } as unknown as Record<string, unknown>;
+    if (rule)
+      return { action: rule.action, match: rule.match } as unknown as Record<
+        string,
+        unknown
+      >;
   } catch {
     /* malformed frontmatter: body scan only */
   }
