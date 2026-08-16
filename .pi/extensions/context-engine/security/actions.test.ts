@@ -37,8 +37,8 @@ test("bash benign command -> none", () => {
   assert.deepEqual(r.findings, []);
 });
 
-// A single high-severity finding aggregates to "medium" (calibrated: 10 <= 12),
-// which the barrier still blocks (medium+). The finding itself stays "high".
+// F12: a single high-severity finding aggregates to "high" (never folded to medium),
+// which the barrier blocks. The finding itself stays "high".
 
 test("read of ssh key -> high secrets finding, blocked level", () => {
   const r = scanAction("read", { path: "~/.ssh/id_rsa" });

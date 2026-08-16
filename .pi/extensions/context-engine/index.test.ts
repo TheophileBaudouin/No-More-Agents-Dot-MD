@@ -910,7 +910,7 @@ test("barrier B: read of ~/.ssh is blocked when declined", async () => {
 		confirmCtx({ confirm: async () => false }),
 	);
 	assert.equal(res.block, true);
-	assert.match(res.reason, /MEDIUM risk read action/);
+	assert.match(res.reason, /HIGH risk read action/);
 
 	fs.rmSync(cwd, { recursive: true, force: true });
 });

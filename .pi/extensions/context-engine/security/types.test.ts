@@ -36,10 +36,18 @@ test("aggregate: 16 medium findings stay medium, 17 cross to high", () => {
   assert.equal(aggregate([...sixteen, f("medium")]), "high"); // round(3*log2(18)) = 13
 });
 
-test("aggregate: high findings scale 1/2/5 -> medium/high/critical", () => {
-  assert.equal(aggregate([f("high")]), "medium"); // 10
+test("aggregate: high findings scale 1/2/5 -> high/high/critical", () => {
+  assert.equal(aggregate([f("high")]), "high"); // F12: a lone high is a real high, never folded to medium
   assert.equal(aggregate([f("high"), f("high")]), "high"); // round(10*log2(3)) = 16
   assert.equal(aggregate(Array.from({ length: 5 }, () => f("high"))), "critical"); // round(10*log2(6)) = 26
+});
+
+test("F12: one high plus two lows stays high", () => {
+  assert.equal(aggregate([f("high"), f("low"), f("low")]), "high"); // 10 + 1 + 1 = 12
+});
+
+test("F12: three medium findings stay medium (no false high)", () => {
+  assert.equal(aggregate([f("medium"), f("medium"), f("medium")]), "medium"); // round(3*log2(4)) = 6
 });
 
 test("aggregate: mixed severities sum", () => {

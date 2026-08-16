@@ -83,6 +83,8 @@ export function aggregate(findings: Finding[]): RiskLevel {
   ) {
     return "medium";
   }
+  // A lone high finding is a real high — the log2 scale folds it into medium.
+  if (level === "medium" && counts.high > 0) return "high";
   return level;
 }
 
