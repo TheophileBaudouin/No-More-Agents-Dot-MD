@@ -177,8 +177,9 @@
     "mode": "command"
   },
   "commands/cat-ssh-curl.md": {
-    "expected": "high",
-    "mode": "command"
+    "expected": "critical",
+    "mode": "command",
+    "note": "F11: secret read + network across && chains now compose to terminal exfil"
   },
   "commands/sudo-crontab.md": {
     "expected": "high",

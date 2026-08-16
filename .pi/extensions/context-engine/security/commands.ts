@@ -304,6 +304,10 @@ function toChains(segs: PipelineSegment[]): PipelineSegment[][] {
  */
 export function scanCommand(command: string): ScanResult {
   const findings: Finding[] = [];
+  // F11: secret-read and network in DIFFERENT chains (`;`/`&&`) still compose
+  // into exfiltration — the pipe-chain rule missed the cross-chain case.
+  let anySecret = false;
+  let anyNetwork = false;
   for (const chain of toChains(splitPipeline(command))) {
     const segData = chain.map((seg) => {
       const isExecTarget =
@@ -318,6 +322,8 @@ export function scanCommand(command: string): ScanResult {
     const chainNetwork = segData.some((s) => DL_TOOLS_RE.test(s.seg.text));
     // M-4: secret material via read verb, < redirect, or tar operand.
     const chainSecretRead = segData.some((s) => hasSecretInput(s.seg.text));
+    anySecret = anySecret || chainSecretRead;
+    anyNetwork = anyNetwork || chainNetwork;
     for (const d of segData) {
       const excerpt = d.seg.text.trim().replace(/\s+/g, " ").slice(0, 80);
       // H-5: decode segment content and scan it as a command (base64/hex/url).
@@ -374,18 +380,20 @@ export function scanCommand(command: string): ScanResult {
         );
       }
     }
-    if (chainNetwork && chainSecretRead) {
-      findings.push(
-        mkFinding(
-          "cmd-secret-exfil",
-          "exfiltration",
-          "critical",
-          "high",
-          command.trim().replace(/\s+/g, " ").slice(0, 80),
-          { terminal: true },
-        ),
-      );
-    }
+  }
+  // F11: secret material read anywhere + a network tool anywhere in the same
+  // command = exfiltration, whatever the separator between them.
+  if (anySecret && anyNetwork) {
+    findings.push(
+      mkFinding(
+        "cmd-secret-exfil",
+        "exfiltration",
+        "critical",
+        "high",
+        command.trim().replace(/\s+/g, " ").slice(0, 80),
+        { terminal: true },
+      ),
+    );
   }
   // F2: clone + exec of a file from the clone, whatever the separator.
   if (GIT_CLONE_RE.test(command) && CLONE_EXEC_RE.test(command)) {
