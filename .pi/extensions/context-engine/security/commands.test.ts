@@ -282,6 +282,78 @@ test("mkfs.ext4 /dev/sdb1 -> critical terminal", () => {
   assert.equal(level(scanCommand("sudo mkfs.ext4 /dev/sdb1")), "critical");
 });
 
+// --- F1 (audit CRITICAL): home/absolute/cwd wipes ---
+
+test("F1: rm -rf ~/ and ~/Documents -> critical terminal (home wipes)", () => {
+  for (const cmd of ["rm -rf ~/", "rm -rf ~/Documents"]) {
+    const sr = scanCommand(cmd);
+    assert.equal(sr.level, "critical", cmd);
+    assert.ok(
+      sr.findings.some((f) => f.id === "cmd-destructive" && f.terminal),
+      cmd,
+    );
+  }
+});
+
+test("F1: rm -rf $HOME/ -> critical terminal", () => {
+  const sr = scanCommand("rm -rf $HOME/");
+  assert.equal(sr.level, "critical");
+  assert.ok(sr.findings.some((f) => f.id === "cmd-destructive" && f.terminal));
+});
+
+test("F1: rm -rf // and /home/user -> critical terminal (absolute wipes)", () => {
+  for (const cmd of ["rm -rf //", "rm -rf /home/user"]) {
+    const sr = scanCommand(cmd);
+    assert.equal(sr.level, "critical", cmd);
+    assert.ok(
+      sr.findings.some((f) => f.id === "cmd-destructive" && f.terminal),
+      cmd,
+    );
+  }
+});
+
+test("F1: rm -rf . / .. / ./ -> critical terminal (cwd wipes)", () => {
+  for (const cmd of ["rm -rf .", "rm -rf ..", "rm -rf ./"]) {
+    const sr = scanCommand(cmd);
+    assert.equal(sr.level, "critical", cmd);
+    assert.ok(
+      sr.findings.some((f) => f.id === "cmd-destructive" && f.terminal),
+      cmd,
+    );
+  }
+});
+
+test("F1: dd from urandom/reversed onto a device -> critical terminal", () => {
+  for (const cmd of [
+    "dd if=/dev/urandom of=/dev/sda",
+    "dd of=/dev/sda if=/dev/zero",
+  ]) {
+    const sr = scanCommand(cmd);
+    assert.equal(sr.level, "critical", cmd);
+    assert.ok(
+      sr.findings.some((f) => f.id === "cmd-destructive" && f.terminal),
+      cmd,
+    );
+  }
+});
+
+test("F1: scoped rm/dd targets stay non-destructive", () => {
+  for (const cmd of [
+    "rm -rf /tmp/foo",
+    "rm -rf /tmp",
+    "rm -rf ./node_modules",
+    "rm -rf ./dist",
+    "dd if=/dev/zero of=./image.img",
+  ]) {
+    const sr = scanCommand(cmd);
+    assert.equal(
+      sr.findings.some((f) => f.id === "cmd-destructive"),
+      false,
+      cmd,
+    );
+  }
+});
+
 // --- persistence ---
 
 test("echo >> /etc/hosts -> high persist finding", () => {

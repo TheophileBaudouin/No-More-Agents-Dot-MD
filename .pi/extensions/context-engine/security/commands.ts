@@ -76,11 +76,18 @@ const LOCAL_URL_RE =
   /https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?\//i;
 const SHELL_RE =
   /(^|[;&\s])((?:ba|z|da|k|a|c|tc)?sh|pwsh|powershell|fish)(\s|$)/i;
+// Home/root/cwd wipes: ~ and $HOME targets are always home expansion after
+// `rm -rf `; any absolute target is a wipe unless under throwaway /tmp;
+// bare `.`/`..`/`./` wipes the cwd. Scoped dev dirs (./node_modules) untouched.
+// Residual: flags intercalated between `-rf` and the target
+// (`rm -rf --one-file-system ~`) are not covered.
 const RM_ROOT_RE =
-  /rm\s+-[a-z]*(?:rf|fr)[a-z]*\s+(\/\*|\/(?![/\w])|~(?![/\w])|\$HOME(?![/\w]))/i;
+  /rm\s+-[a-z]*(?:rf|fr)[a-z]*\s+(?:\/(?!(?:tmp|private\/tmp)(?:\/|(?=[\s;&|]*$)))|~|\$HOME\b|\.\.?(?:\/)?(?=[\s;&|]*$))/i;
 const RM_DEV_RE =
   /rm\s+-[a-z]*(?:rf|fr)[a-z]*\s+(?:\.\/)?(?:node_modules|dist|build|\.next|coverage|target|out|\.cache|tmp|\.venv)(?:\/|$|\s)/i;
-const DD_ZERO_RE = /\bdd\b[^|;&]*if=\/dev\/zero[^|;&]*of=\/dev\//i;
+// Order-independent dd of a noise device onto a device node.
+const DD_DISK_RE =
+  /\bdd\b(?=[^|;&]*\bof=\/dev\/)(?=[^|;&]*\bif=\/dev\/(?:zero|urandom|random)\b)/i;
 const MKFS_RE = /\bmkfs(?:\.\w+)?\b/i;
 const READ_RE = /\b(cat|tail|head|less|more|strings|type|Get-Content)\b/i;
 const SECRET_PATH_RE =
@@ -175,7 +182,7 @@ const hasSecretInput = (s: string): boolean =>
 function classifySegment(text: string): Finding[] {
   const out: Finding[] = [];
   const excerpt = text.trim().replace(/\s+/g, " ").slice(0, 80);
-  if (RM_ROOT_RE.test(text) || DD_ZERO_RE.test(text) || MKFS_RE.test(text)) {
+  if (RM_ROOT_RE.test(text) || DD_DISK_RE.test(text) || MKFS_RE.test(text)) {
     out.push(
       mkFinding("cmd-destructive", "command", "critical", "high", excerpt, {
         terminal: true,
