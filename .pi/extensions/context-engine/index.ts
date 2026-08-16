@@ -23,6 +23,7 @@ import {
 import type { Subject } from "./match.ts";
 import { scanAction, needsNetworkCheck } from "./security/actions.ts";
 import { enrichInstall } from "./security/npm.ts";
+import { enrichUrlhaus } from "./security/urlhaus.ts";
 import {
 	nudgeLevel,
 	provenance,
@@ -321,18 +322,22 @@ export default function (pi: ExtensionAPI) {
 			console.error(`[${BRAND}] security scan failed: ${(err as Error).message}`);
 			return "SECURITY scanner error — action blocked (fail-safe). Check the logs.";
 		}
-		let level = sr.level;
 		const cmd = (input as Record<string, unknown> | undefined)?.command;
 		const command = typeof cmd === "string" ? cmd : "";
 		if (command !== "" && needsNetworkCheck(sr, command)) {
+			// Both enrichments are internally total (never throw, failure = no
+			// signal); the try/catch is defense-in-depth. sr is reassigned so
+			// enrichment findings are visible in the confirm UI below.
 			try {
-				level = (await enrichInstall(command, sr)).level;
+				sr = await enrichInstall(command, sr);
+				sr = await enrichUrlhaus(command, sr);
 			} catch (err) {
 				console.error(
-					`[${BRAND}] install enrichment failed: ${(err as Error).message}`,
+					`[${BRAND}] network enrichment failed: ${(err as Error).message}`,
 				);
 			}
 		}
+		const level = sr.level;
 		if (level === "none" || level === "low") return null;
 		const ids = sr.findings.map((f) => f.id).join(", ");
 		if (!ctx?.hasUI) {
