@@ -77,6 +77,11 @@
     "expected": "high",
     "mode": "context"
   },
+"prompt-injection/canonical-the-previous.md": {
+    "expected": "medium",
+    "mode": "context",
+    "note": "F19: permanent adversarial fixture (subtle: canonical phrase alone stays medium)"
+  },
   "prompt-injection/conditional-poison.md": {
     "expected": "high",
     "mode": "context"
@@ -96,6 +101,11 @@
   "remote/wget-instructions.md": {
     "expected": "high",
     "mode": "context"
+  },
+"remote/html-comment-instructions.md": {
+    "expected": "critical",
+    "mode": "context",
+    "note": "F19: permanent adversarial fixture"
   },
   "remote/read-then-execute.md": {
     "expected": "critical",
@@ -145,6 +155,11 @@
     "expected": "high",
     "mode": "context"
   },
+"obfuscation/base64-triple.md": {
+    "expected": "medium",
+    "mode": "context",
+    "note": "F19: permanent adversarial fixture (subtle: decoded override stays medium)"
+  },
   "obfuscation/double-encoded.md": {
     "expected": "critical",
     "mode": "context"
@@ -152,6 +167,11 @@
   "obfuscation/html-comment-hidden.md": {
     "expected": "high",
     "mode": "context"
+  },
+"exfiltration/semicolon-exfil.md": {
+    "expected": "critical",
+    "mode": "command",
+    "note": "F19: permanent adversarial fixture"
   },
   "exfiltration/ssh-exfil.md": {
     "expected": "high",
@@ -173,6 +193,11 @@
   "exfiltration/keys-via-curl.md": {
     "expected": "critical",
     "mode": "command"
+  },
+"commands/clone-and-run.md": {
+    "expected": "medium",
+    "mode": "command",
+    "note": "F19: permanent adversarial fixture"
   },
   "commands/curl-bash.md": {
     "expected": "critical",
@@ -214,6 +239,16 @@
   "commands/git-status.md": {
     "expected": "none",
     "mode": "command"
+  },
+"commands/pipe-bin-sh.md": {
+    "expected": "critical",
+    "mode": "command",
+    "note": "F19: permanent adversarial fixture"
+  },
+"commands/rm-home.md": {
+    "expected": "critical",
+    "mode": "command",
+    "note": "F19: permanent adversarial fixture"
   },
   "commands/rm-node-modules.md": {
     "expected": "low",
@@ -305,6 +340,11 @@
     "expected": "none",
     "mode": "context"
   },
+"prompt-injection/double-space-evasion.md": {
+    "expected": "high",
+    "mode": "context",
+    "note": "F19: permanent adversarial fixture"
+  },
   "prompt-injection/fenced-payloads.md": {
     "expected": "high",
     "mode": "context",
@@ -316,3 +356,4 @@
     "note": "benign code examples in fences stay silent"
   }
 }
+
