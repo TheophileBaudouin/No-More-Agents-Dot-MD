@@ -1,10 +1,51 @@
 /** Orchestrator: normalize -> decode -> scan -> aggregate. No pi imports. */
 
-import { aggregate, mkFinding, type Finding, type ScanResult } from "./types.ts";
+import { aggregate, isTerminal, mkFinding, type Finding, type RiskLevel, type ScanResult } from "./types.ts";
 import { findDecodedBlobs } from "./encoding.ts";
 import { scanUnicode } from "./unicode.ts";
 import { stripCodeBlocks, stripHtmlComments, scanMarkdown } from "./markdown.ts";
 import { scanRules, scanExternalRefs } from "./rules.ts";
+
+export type Provenance = "user" | "downloaded" | "untrusted-project";
+
+const DOWNLOAD_AGE_MS = 3600000; // 1 hour
+
+/**
+ * Classify where a rule file came from, from best-effort signals.
+ * 'downloaded' wins (a recent untracked file is, by definition, not authored
+ * in this project); an untrusted project marks everything it contains.
+ */
+export function provenance(
+  _file: string,
+  signals: { isProjectTrusted: boolean; now?: Date; mtimeMs?: number; gitTracked?: boolean },
+): Provenance {
+  const now = signals.now ?? new Date();
+  if (
+    signals.gitTracked === false &&
+    signals.mtimeMs !== undefined &&
+    now.getTime() - signals.mtimeMs < DOWNLOAD_AGE_MS
+  ) {
+    return "downloaded";
+  }
+  if (!signals.isProjectTrusted) return "untrusted-project";
+  return "user";
+}
+
+const NEXT_LEVEL: RiskLevel[] = ["none", "low", "medium", "high", "critical"];
+
+/**
+ * Provenance nudge (Task 13): raise the level one step for downloaded /
+ * untrusted-project files with findings. Never raises 'none', and high only
+ * rises to critical when a terminal finding is present (a CRITICAL decision
+ * always needs a terminal finding or a >= critical score).
+ */
+export function nudgeLevel(level: RiskLevel, prov: Provenance, findings: Finding[]): RiskLevel {
+  if (level === "none" || level === "critical") return level;
+  if (findings.length === 0) return level;
+  if (prov !== "downloaded" && prov !== "untrusted-project") return level;
+  if (level === "high") return isTerminal(findings) ? "critical" : "high";
+  return NEXT_LEVEL[NEXT_LEVEL.indexOf(level) + 1];
+}
 
 /** Scan a context rule file (raw markdown). `file` is reserved for provenance. */
 export function scanContext(raw: string, _file: string): ScanResult {

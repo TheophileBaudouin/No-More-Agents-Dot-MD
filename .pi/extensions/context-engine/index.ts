@@ -5,7 +5,7 @@
  */
 import * as path from "node:path";
 import * as fs from "node:fs";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import {
 	copyToClipboard,
 	createLocalBashOperations,
@@ -23,7 +23,13 @@ import {
 import type { Subject } from "./match.ts";
 import { scanAction, needsNetworkCheck } from "./security/actions.ts";
 import { enrichInstall } from "./security/npm.ts";
-import { scanContext, scanFrontmatter } from "./security/scan.ts";
+import {
+	nudgeLevel,
+	provenance,
+	scanContext,
+	scanFrontmatter,
+	type Provenance,
+} from "./security/scan.ts";
 import { approve, revoke, status } from "./security/trust.ts";
 import {
 	aggregate,
@@ -91,6 +97,25 @@ export default function (pi: ExtensionAPI) {
 	}
 
 	/**
+	 * Best-effort git tracking check: 0 = tracked, 1 = untracked,
+	 * anything else (no repo, git missing) = unknown. Never throws.
+	 */
+	function gitTrackedOf(dir: string, abs: string): boolean | undefined {
+		try {
+			const r = spawnSync(
+				"git",
+				["-C", dir, "ls-files", "--error-unmatch", "--", abs],
+				{ stdio: "ignore", timeout: 2000 },
+			);
+			if (r.status === 0) return true;
+			if (r.status === 1) return false;
+			return undefined;
+		} catch {
+			return undefined;
+		}
+	}
+
+	/**
 	 * Load-time gate (barrier A): scan + trust every rule file, prompt on
 	 * medium/high, block critical, short-circuit on trusted. Returns the set of
 	 * file names allowed through to the loader. Never throws.
@@ -137,6 +162,20 @@ export default function (pi: ExtensionAPI) {
 			} catch (err) {
 				console.error(`[${BRAND}] ${f}: trust store error: ${(err as Error).message}`);
 			}
+			// Provenance (best-effort): project trust + git tracking + mtime.
+			// ctx without isProjectTrusted is treated as trusted (no nudge);
+			// a missing git signal never downgrades a file.
+			let prov: Provenance = "user";
+			try {
+				prov = provenance(abs, {
+					isProjectTrusted: ctx?.isProjectTrusted?.() ?? true,
+					mtimeMs: fs.statSync(abs).mtimeMs,
+					gitTracked: gitTrackedOf(dir, abs),
+				});
+			} catch {
+				/* best-effort: keep user */
+			}
+			scan.level = nudgeLevel(scan.level, prov, scan.findings);
 			let loaded: boolean;
 			if (trusted || scan.level === "none" || scan.level === "low") {
 				loaded = true;
@@ -159,7 +198,7 @@ export default function (pi: ExtensionAPI) {
 				);
 				if (ok) {
 					try {
-						approve(abs, raw, scan.level, "user");
+						approve(abs, raw, scan.level, prov);
 					} catch (err) {
 						console.error(`[${BRAND}] ${f}: approve failed: ${(err as Error).message}`);
 					}

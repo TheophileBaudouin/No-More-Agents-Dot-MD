@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { spawnSync } from "node:child_process";
 import createExtension from "./index.ts";
 
 // Security isolation: no network signals in integration tests. Read at call
@@ -1121,6 +1122,93 @@ test("gate: no UI skips medium files silently", async () => {
 function uiCtx(cwd: string) {
 	return makeCtx({ cwd, hasUI: true }).ctx;
 }
+
+test("gate: untrusted project nudges medium to high and records provenance", async () => {
+	const pi = makePi();
+	createExtension(pi as any);
+	const cwd = makeProject({ ".pi/context/med.md": MEDIUM_BODY });
+	const confirmCalls: Array<[string, string]> = [];
+	const { ctx } = makeCtx({
+		cwd,
+		hasUI: true,
+		isProjectTrusted: () => false,
+		ui: {
+			confirm: async (title: string, msg: string) => {
+				confirmCalls.push([title, msg]);
+				return true;
+			},
+		},
+	});
+	await pi.handlers["session_start"]({}, ctx);
+	assert.equal(confirmCalls.length, 1);
+	assert.match(confirmCalls[0][0], /^high rule file: med\.md$/); // nudged medium -> high
+
+	// approve() records the provenance in the trust file
+	const raw = JSON.parse(fs.readFileSync(TRUST_FILE, "utf8"));
+	const key = path.resolve(cwd, ".pi/context/med.md");
+	assert.equal(raw[key].provenance, "untrusted-project");
+	assert.equal(raw[key].level, "high");
+
+	fs.rmSync(cwd, { recursive: true, force: true });
+});
+
+test("gate: trusted project with explicit isProjectTrusted does not nudge", async () => {
+	const pi = makePi();
+	createExtension(pi as any);
+	const cwd = makeProject({ ".pi/context/med.md": MEDIUM_BODY });
+	const confirmCalls: Array<[string, string]> = [];
+	const { ctx } = makeCtx({
+		cwd,
+		hasUI: true,
+		isProjectTrusted: () => true,
+		ui: {
+			confirm: async (title: string, msg: string) => {
+				confirmCalls.push([title, msg]);
+				return true;
+			},
+		},
+	});
+	await pi.handlers["session_start"]({}, ctx);
+	assert.equal(confirmCalls.length, 1);
+	assert.match(confirmCalls[0][0], /^medium rule file: med\.md$/); // no nudge
+
+	fs.rmSync(cwd, { recursive: true, force: true });
+});
+
+test("gate: recent untracked file is nudged to high (downloaded provenance)", async (t) => {
+	const git = spawnSync("git", ["--version"], { stdio: "ignore" });
+	if (git.status !== 0) {
+		t.skip("git not available");
+		return;
+	}
+	const pi = makePi();
+	createExtension(pi as any);
+	const cwd = makeProject({ ".pi/context/.keep": "" });
+	spawnSync("git", ["init", "-q"], { cwd });
+	spawnSync("git", ["add", "-A"], { cwd });
+	// written after `git add` -> untracked, mtime now
+	fs.writeFileSync(path.join(cwd, ".pi/context/med.md"), MEDIUM_BODY);
+	const confirmCalls: Array<[string, string]> = [];
+	const { ctx } = makeCtx({
+		cwd,
+		hasUI: true,
+		isProjectTrusted: () => true,
+		ui: {
+			confirm: async (title: string, msg: string) => {
+				confirmCalls.push([title, msg]);
+				return true;
+			},
+		},
+	});
+	await pi.handlers["session_start"]({}, ctx);
+	assert.equal(confirmCalls.length, 1);
+	assert.match(confirmCalls[0][0], /^high rule file: med\.md$/); // nudged medium -> high
+
+	const raw = JSON.parse(fs.readFileSync(TRUST_FILE, "utf8"));
+	assert.equal(raw[path.resolve(cwd, ".pi/context/med.md")].provenance, "downloaded");
+
+	fs.rmSync(cwd, { recursive: true, force: true });
+});
 
 test("gate: benign file loads without any prompt", async () => {
 	const pi = makePi();
