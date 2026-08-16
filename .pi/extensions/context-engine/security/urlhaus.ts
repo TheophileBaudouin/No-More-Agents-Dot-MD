@@ -1,6 +1,7 @@
 /** URLhaus host reputation (Task 9, opt-in via NMA_URLHAUS_KEY). No pi imports. */
 
-import { NETWORK_TIMEOUT_MS, getUrlhausKey } from "./config.ts";
+import { NETWORK_TIMEOUT_MS, getUrlhausKey, isNetworkEnabled } from "./config.ts";
+import { aggregate, mkFinding, type Finding, type ScanResult } from "./types.ts";
 
 export type FetchFn = typeof fetch;
 
@@ -55,4 +56,41 @@ export function extractPublicHosts(command: string): string[] {
     if (out.length >= MAX_HOSTS_PER_COMMAND) break;
   }
   return out;
+}
+
+/**
+ * Best-effort URLhaus host reputation for shell commands (opt-in via
+ * NMA_URLHAUS_KEY). A listed host adds one critical terminal finding;
+ * "not listed" adds nothing (absence of signal is never "safe"); API
+ * failure adds nothing and leaves the level unchanged. Never throws.
+ */
+export async function enrichUrlhaus(
+  command: string,
+  existing: ScanResult,
+  fetchFn?: FetchFn,
+): Promise<ScanResult> {
+  if (!isNetworkEnabled()) return existing;
+  if ((process.env.NMA_URLHAUS_KEY ?? getUrlhausKey()) === "") return existing;
+  const hosts = extractPublicHosts(command);
+  if (hosts.length === 0) return existing;
+  const extra: Finding[] = [];
+  await Promise.all(
+    hosts.map(async (host) => {
+      const r = await checkUrlhausHost(host, fetchFn);
+      if (r === null || !r.match) return;
+      extra.push(
+        mkFinding(
+          "cmd-urlhaus-listed",
+          "external",
+          "critical",
+          "high",
+          `host ${host} is listed on URLhaus (known malware distribution)`,
+          { terminal: true },
+        ),
+      );
+    }),
+  );
+  if (extra.length === 0) return existing;
+  const findings = [...existing.findings, ...extra];
+  return { ...existing, findings, level: aggregate(findings) };
 }

