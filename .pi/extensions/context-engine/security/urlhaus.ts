@@ -1,6 +1,6 @@
 /** URLhaus host reputation (Task 9, opt-in via NMA_URLHAUS_KEY). No pi imports. */
 
-import { NETWORK_TIMEOUT_MS, getUrlhausKey, isNetworkEnabled } from "./config.ts";
+import { NETWORK_TIMEOUT_MS, NETWORK_CACHE_TTL_MS, getUrlhausKey, isNetworkEnabled } from "./config.ts";
 import { aggregate, mkFinding, type Finding, type ScanResult } from "./types.ts";
 
 export type FetchFn = typeof fetch;
@@ -58,6 +58,27 @@ export function extractPublicHosts(command: string): string[] {
   return out;
 }
 
+// In-memory TTL cache: definitive urlhaus answers per host (failures uncached,
+// so a transient outage retries on the next command). Same shape as npm.ts.
+type HostCacheEntry = { ts: number; match: boolean };
+const hostCache = new Map<string, HostCacheEntry>();
+
+function hostCacheGet(host: string): boolean | undefined {
+  const e = hostCache.get(host);
+  if (e === undefined) return undefined;
+  if (Date.now() - e.ts > NETWORK_CACHE_TTL_MS) {
+    hostCache.delete(host);
+    return undefined;
+  }
+  return e.match;
+}
+
+/** Bound the cache — evict the oldest entry (Map order = insertion) at 200. */
+function hostCacheSet(host: string, match: boolean): void {
+  if (hostCache.size >= 200) hostCache.delete(hostCache.keys().next().value!);
+  hostCache.set(host, { ts: Date.now(), match });
+}
+
 /**
  * Best-effort URLhaus host reputation for shell commands (opt-in via
  * NMA_URLHAUS_KEY). A listed host adds one critical terminal finding;
@@ -76,8 +97,14 @@ export async function enrichUrlhaus(
   const extra: Finding[] = [];
   await Promise.all(
     hosts.map(async (host) => {
-      const r = await checkUrlhausHost(host, fetchFn);
-      if (r === null || !r.match) return;
+      let match = hostCacheGet(host);
+      if (match === undefined) {
+        const r = await checkUrlhausHost(host, fetchFn);
+        if (r === null) return; // failure: no signal, never cached
+        match = r.match;
+        hostCacheSet(host, match);
+      }
+      if (!match) return;
       extra.push(
         mkFinding(
           "cmd-urlhaus-listed",

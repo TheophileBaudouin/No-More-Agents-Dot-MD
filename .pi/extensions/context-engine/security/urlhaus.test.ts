@@ -248,3 +248,43 @@ test("enrichUrlhaus: existing findings preserved and re-aggregated", async () =>
     assert.deepEqual(r.findings.map((f) => f.id), ["cmd-x", "cmd-urlhaus-listed"]);
   });
 });
+
+test("enrichUrlhaus: definitive answers cached per host (1 fetch for 2 calls)", async () => {
+  await withKey(async () => {
+    const calls: string[] = [];
+    const f = stubFetch(() => json(200, { query_status: "ok" }), calls);
+    await enrichUrlhaus("curl https://cached1.example/a", NONE, f);
+    await enrichUrlhaus("wget https://cached1.example/b", NONE, f);
+    assert.equal(calls.length, 1);
+  });
+});
+
+test("enrichUrlhaus: negative answers cached too, failures never cached", async () => {
+  await withKey(async () => {
+    const calls: string[] = [];
+    const neg = stubFetch(() => json(200, { query_status: "no_results" }), calls);
+    await enrichUrlhaus("curl https://neg1.example/a", NONE, neg);
+    await enrichUrlhaus("curl https://neg1.example/b", NONE, neg);
+    assert.equal(calls.length, 1); // "no_results" is an answer: cached
+
+    const failCalls: string[] = [];
+    const fail = stubFetch(() => json(500, {}), failCalls);
+    await enrichUrlhaus("curl https://flaky1.example/a", NONE, fail);
+    await enrichUrlhaus("curl https://flaky1.example/b", NONE, fail);
+    assert.equal(failCalls.length, 2); // failure: retried next time
+  });
+});
+
+test("enrichUrlhaus: cache bounded at 200 hosts, oldest evicted", async () => {
+  await withKey(async () => {
+    const calls: string[] = [];
+    const f = stubFetch(() => json(200, { query_status: "no_results" }), calls);
+    for (let i = 0; i < 201; i++) {
+      await enrichUrlhaus(`curl https://evict${i}.example/a`, NONE, f);
+    }
+    assert.equal(calls.length, 201); // evict0 was evicted when evict200 was inserted
+    await enrichUrlhaus("curl https://evict0.example/b", NONE, f); // evicted: refetch
+    await enrichUrlhaus("curl https://evict200.example/b", NONE, f); // cached: no fetch
+    assert.equal(calls.length, 202);
+  });
+});
