@@ -214,7 +214,13 @@ as a tested, ready-to-integrate building block.
   never auto-critical (a payload in a fence always prompts, a benign example
   stays silent); zero-width, LRM/RLM, word-joiner and control characters are
   normalized before signature matching, and a trigger that only matches after
-  normalization is `medium`+; trigger phrases split across line breaks are
+  normalization is `medium`+; whitespace runs (double spaces, tabs) are
+  collapsed to a single space before matching — a phrase that only matches
+  after collapsing is `medium`+; canonical override phrases ("ignore the
+  previous instructions", "ignore prior instructions", "disregard the
+  previous rules", …) are now signatures, so documentation that quotes them
+  scans `medium`+ — assumed trade-off: it confirms, never blocks; trigger
+  phrases split across line breaks are
   recombined; at barrier B, base64/hex/URL-decoded content is re-scanned as a
   command, and `base64 -d` piped to a shell is terminal (`cmd-obf-exec`);
   interpreter inline eval (`python3 -c`, `node -e`, `php -r`…) is flagged

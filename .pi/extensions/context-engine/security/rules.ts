@@ -27,12 +27,18 @@ export const SIGNATURES: RuleSet = [
     patterns: [
       "ignore previous instructions",
       "ignore all previous instructions",
+      "ignore the previous instructions",
+      "ignore prior instructions",
+      "ignore preceding instructions",
+      "ignore earlier instructions",
       "ignore the instructions above",
       "ignore your instructions",
       "ignore the rules above",
       "ignore all previous rules",
       "disregard previous",
       "disregard all previous",
+      "disregard the previous instructions",
+      "disregard the previous rules",
       "forget everything above",
       "forget all previous",
       "forget your instructions",
@@ -216,9 +222,12 @@ export function scanRules(
   for (let li = 0; li < lines.length; li++) {
     const line = lines[li];
     const lower = line.toLowerCase();
-    // H-2: match against the raw line and two normalized views.
+    // H-2/F4: match against the raw line and three normalized views.
     const stripped = lower.replace(EVASION_CHARS, "");
     const spaced = lower.replace(EVASION_CHARS, " ");
+    // search order: lower -> stripped -> spaced -> collapsed
+    // a collapsed-only hit counts as evasion (evaded = true)
+    const collapsed = lower.replace(/\s+/g, " ");
     for (const sig of SIGNATURES) {
       for (const pat of sig.patterns) {
         let idx = lower.indexOf(pat);
@@ -226,6 +235,7 @@ export function scanRules(
         if (idx === -1) {
           idx = stripped.indexOf(pat);
           if (idx === -1) idx = spaced.indexOf(pat);
+          if (idx === -1) idx = collapsed.indexOf(pat);
           evaded = idx !== -1;
         }
         if (idx === -1) continue;
@@ -278,12 +288,15 @@ export function scanRules(
     const evasive = EVASION_PRESENT.test(joined);
     const stripped = evasive ? joined.replace(EVASION_CHARS, "") : joined;
     const spaced = evasive ? joined.replace(EVASION_CHARS, " ") : joined;
-    // H-2 views of each line: a pattern matched on one line only via a
+    const joinedCollapsed = joined.replace(/\s+/g, " ");
+    // H-2/F4 views of each line: a pattern matched on one line only via a
     // normalized view is already a per-line finding — don't re-report it here.
     const nA = evasive ? a.replace(EVASION_CHARS, "") : a;
     const nAsp = evasive ? a.replace(EVASION_CHARS, " ") : a;
     const nB = evasive ? b.replace(EVASION_CHARS, "") : b;
     const nBsp = evasive ? b.replace(EVASION_CHARS, " ") : b;
+    const cA = a.replace(/\s+/g, " ");
+    const cB = b.replace(/\s+/g, " ");
     for (const sig of SIGNATURES) {
       let hit = false;
       for (const pat of sig.patterns) {
@@ -293,12 +306,14 @@ export function scanRules(
           nA.includes(pat) ||
           nAsp.includes(pat) ||
           nB.includes(pat) ||
-          nBsp.includes(pat)
+          nBsp.includes(pat) ||
+          cA.includes(pat) ||
+          cB.includes(pat)
         ) {
           hit = false;
           break; // signature already reported by the per-line scan
         }
-        if (stripped.includes(pat) || spaced.includes(pat)) {
+        if (stripped.includes(pat) || spaced.includes(pat) || joinedCollapsed.includes(pat)) {
           hit = true;
           break;
         }
