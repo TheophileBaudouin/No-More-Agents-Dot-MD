@@ -281,9 +281,10 @@ export default function (pi: ExtensionAPI) {
 		try {
 			sr = scanAction(tool, input);
 		} catch (err) {
-			// Scanner bug must not break the agent: log and fall through.
+			// Fail-closed (M-6): a scanner exception must never become a silent
+			// allow — block the action and surface the reason.
 			console.error(`[${BRAND}] security scan failed: ${(err as Error).message}`);
-			return null;
+			return "SECURITY scanner error — action blocked (fail-safe). Check the logs.";
 		}
 		let level = sr.level;
 		const cmd = (input as Record<string, unknown> | undefined)?.command;
