@@ -27,5 +27,15 @@
       "skill/context-engine"
     ],
     "image": "https://raw.githubusercontent.com/TheophileBaudouin/No-More-Agents-Dot-MD/main/assets/image.png"
-  }
+  },
+  "files": [
+    ".pi/extensions/context-engine",
+    "skill",
+    "documentation",
+    "README.md",
+    "LICENSE",
+    "!.pi/extensions/context-engine/node_modules",
+    "!.pi/extensions/context-engine/**/*.test.ts",
+    "!.pi/extensions/context-engine/**/fixtures/**"
+  ]
 }
