@@ -2,6 +2,10 @@
 
 ## tool_call
 
+The security action barrier runs **before** all user rules on `tool_call`
+and `user_bash`: a security `block` short-circuits the loop and cannot be
+lifted or modified by user rules.
+
 `tool_call` rules run in priority order (high → low). The first `block` return
 wins and stops the loop; `confirm` approvals, `modify` patches, `inject`
 queues, `tools` toggles and `notify` calls all accumulate before the tool

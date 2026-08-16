@@ -44,6 +44,13 @@ directory when it is missing.
    then check the rule appears in `/nma`. Done when the user confirms the rule
    is listed.
 
+## Security scan
+
+Every rule file is security-scanned at load (`session_start`, `/nma reload`):
+`low` loads silently, `medium`/`high` ask for confirmation, `critical` is
+blocked. Approve a blocked file with `/nma trust <file>`, revoke with
+`/nma untrust <file>`, inspect scan results with `/nma security`.
+
 ## Minimal context
 
 The body is the only context the agent sees — keep it minimal. Short

@@ -75,6 +75,8 @@ is about something else, the agent never sees them.
   exact contract.
 - **[Architecture](architecture.md)** — how the engine works under the hood,
   and how to extend it. For the curious and would-be contributors.
+- **[Security model](security.md)** — how rule files and tool actions are
+  scanned, scored and gated, with the honest limits.
 
 ## What this project is not
 
