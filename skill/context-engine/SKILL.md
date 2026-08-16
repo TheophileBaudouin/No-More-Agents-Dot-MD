@@ -1,5 +1,5 @@
 ---
-name: context-engine
+name: no-more-agents-dot-md
 description: Creates and edits .pi/context/*.md declarative behavior rules for the No More Agents Dot MD extension — conditional context injection, tool guards, confirmations, user-input transforms, post-tool guidance, session-change guards, tool toggling and notifications, managed via the /nma command. Use when asked to add project conventions (UI, git, testing, security), guardrails, or conditional context to a Pi project.
 ---
 

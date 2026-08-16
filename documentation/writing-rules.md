@@ -22,7 +22,7 @@ pre-configured. A fresh install simply loads zero rules — the startup message
 `0 rule(s) loaded from .pi/context/` is normal until you write some.
 
 To create it, run `mkdir -p .pi/context` — or simply ask the agent for a rule
-("add a context rule for X"): the `context-engine` skill creates the directory
+("add a context rule for X"): the `no-more-agents-dot-md` skill creates the directory
 automatically before writing any rule file.
 
 ## The anatomy of a rule file

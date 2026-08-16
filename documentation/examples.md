@@ -3,7 +3,7 @@
 Every recipe below is a complete `.pi/context/<name>.md` file. Copy, adapt,
 save, then `/nma reload`. The repository ships **no** rules: `.pi/context/` is
 entirely yours — create it with `mkdir -p .pi/context` (or ask the agent; the
-`context-engine` skill creates it automatically), then add the rules that fit
+`no-more-agents-dot-md` skill creates it automatically), then add the rules that fit
 your project.
 
 ---
