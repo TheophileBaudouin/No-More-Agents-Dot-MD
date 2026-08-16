@@ -1,6 +1,12 @@
 /** Shell command action scanner (Task 7): pipelines -> segments -> actions. No pi imports. */
 
-import { aggregate, mkFinding, type Finding, type ScanResult, type Severity } from "./types.ts";
+import {
+  aggregate,
+  mkFinding,
+  type Finding,
+  type ScanResult,
+  type Severity,
+} from "./types.ts";
 import { findDecodedBlobs } from "./encoding.ts";
 
 export type PipelineSegment = { text: string; sep: "start" | "pipe" | "seq" };
@@ -66,23 +72,29 @@ function bump(sev: Severity): Severity {
 
 const DL_TOOLS_RE = /\b(curl|wget|nc|ncat)\b/i;
 const URL_RE = /https?:\/\/[^\s'"<>|&;)]+/i;
-const LOCAL_URL_RE = /https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?\//i;
-const SHELL_RE = /(^|[;&\s])((?:ba|z|da|k|a|c|tc)?sh|pwsh|powershell|fish)(\s|$)/i;
-const RM_ROOT_RE = /rm\s+-[a-z]*(?:rf|fr)[a-z]*\s+(\/\*|\/(?![/\w])|~(?![/\w])|\$HOME(?![/\w]))/i;
-const RM_DEV_RE = /rm\s+-[a-z]*(?:rf|fr)[a-z]*\s+(?:\.\/)?(?:node_modules|dist|build|\.next|coverage|target|out|\.cache|tmp|\.venv)(?:\/|$|\s)/i;
+const LOCAL_URL_RE =
+  /https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?\//i;
+const SHELL_RE =
+  /(^|[;&\s])((?:ba|z|da|k|a|c|tc)?sh|pwsh|powershell|fish)(\s|$)/i;
+const RM_ROOT_RE =
+  /rm\s+-[a-z]*(?:rf|fr)[a-z]*\s+(\/\*|\/(?![/\w])|~(?![/\w])|\$HOME(?![/\w]))/i;
+const RM_DEV_RE =
+  /rm\s+-[a-z]*(?:rf|fr)[a-z]*\s+(?:\.\/)?(?:node_modules|dist|build|\.next|coverage|target|out|\.cache|tmp|\.venv)(?:\/|$|\s)/i;
 const DD_ZERO_RE = /\bdd\b[^|;&]*if=\/dev\/zero[^|;&]*of=\/dev\//i;
 const MKFS_RE = /\bmkfs(?:\.\w+)?\b/i;
 const READ_RE = /\b(cat|tail|head|less|more|strings|type|Get-Content)\b/i;
 const SECRET_PATH_RE =
   /(?:\.ssh|\.aws)\b|\.env(?!\.(?:example|sample|template|dist))(?![A-Za-z0-9_.])|\.pem\b|id_rsa|(?:\.aws|aws)[/\\]credentials|\/etc\/shadow/i;
-const SECRET_UPLOAD_RE = /(?:@|file=@|--upload-file[=\s]|-T\s+)[^\s]*?(?:\.ssh|\.aws|\.env(?:[^\w.]|$)|\.pem\b|id_rsa|credentials|shadow)/i;
+const SECRET_UPLOAD_RE =
+  /(?:@|file=@|--upload-file[=\s]|-T\s+)[^\s]*?(?:\.ssh|\.aws|\.env(?:[^\w.]|$)|\.pem\b|id_rsa|credentials|shadow)/i;
 const WRITE_RE = />|>>|\btee\b/i;
 const PERSIST_PATH_RE =
   /(\/etc\/|\/usr\/|\/var\/|\/System\/|\/Library\/Launch(?:Agents|Daemons)|\/Library\/StartupItems)/i;
 const CRONTAB_RE = /\bcrontab\b/i;
 const SUDO_RE = /\bsudo\b/i;
 const NPX_RE = /\b(npx|bunx)\b|\bdeno\s+run\b/i;
-const INSTALL_RE = /\b(?:npm\s+(?:install|i|ci)\b(?!\s+-g\b)|yarn\s+add\b|bun\s+(?:add|install)\b|pnpm\s+(?:add|install|i)\b|pip3?\s+install\b|cargo\s+install\b|gem\s+install\b)/i;
+const INSTALL_RE =
+  /\b(?:npm\s+(?:install|i|ci)\b(?!\s+-g\b)|yarn\s+add\b|bun\s+(?:add|install)\b|pnpm\s+(?:add|install|i)\b|pip3?\s+install\b|cargo\s+install\b|gem\s+install\b)/i;
 const GLOBAL_INSTALL_RE =
   /\b(?:npm\s+-g\s+(?:install|i)\b|npm\s+(?:install|i)\s+-g\b|pnpm\s+add\s+-g\b|yarn\s+global\s+add\b|apt(?:-get)?\s+install\b|dnf\s+install\b|yum\s+install\b|zypper\s+install\b|brew\s+install\b)/i;
 const GIT_CLONE_RE = /\bgit\s+clone\b/i;
@@ -99,8 +111,10 @@ const TAR_SECRET_RE =
 // Inline eval flags: -c (python; php -c is a config path, flagged fail-safe),
 // -e (node/perl/ruby), -p (node print, php), -r (php run). Long forms
 // (--eval) and no-space forms are out of scope (residual, documented).
-const INTERP_RE = /\b(?:node|python|python2|python3|perl|ruby|php)\s+-[a-z]*[cepr][a-z]*\s+/i;
-const INTERP_DANGER_RE = /rm\s+-|curl\b|wget\b|base64|chmod|chown|sudo|exec|spawn|system\s*\(|eval\s*\(|https?:\/\//i;
+const INTERP_RE =
+  /\b(?:node|python|python2|python3|perl|ruby|php)\s+-[a-z]*[cepr][a-z]*\s+/i;
+const INTERP_DANGER_RE =
+  /rm\s+-|curl\b|wget\b|base64|chmod|chown|sudo|exec|spawn|system\s*\(|eval\s*\(|https?:\/\//i;
 
 // File-mediated exec (H-4): files written (or chmod +x'ed) earlier in the same
 // command string and executed later, whatever the separator (`|`, `&&`, `;`).
@@ -162,7 +176,11 @@ function classifySegment(text: string): Finding[] {
   const out: Finding[] = [];
   const excerpt = text.trim().replace(/\s+/g, " ").slice(0, 80);
   if (RM_ROOT_RE.test(text) || DD_ZERO_RE.test(text) || MKFS_RE.test(text)) {
-    out.push(mkFinding("cmd-destructive", "command", "critical", "high", excerpt, { terminal: true }));
+    out.push(
+      mkFinding("cmd-destructive", "command", "critical", "high", excerpt, {
+        terminal: true,
+      }),
+    );
   }
   if (SUDO_RE.test(text)) {
     out.push(mkFinding("cmd-priv-esc", "command", "high", "high", excerpt));
@@ -172,18 +190,38 @@ function classifySegment(text: string): Finding[] {
   }
   if (SCP_RE.test(text) && SECRET_PATH_RE.test(text)) {
     out.push(
-      mkFinding("cmd-secret-exfil", "exfiltration", "critical", "high", excerpt, {
-        terminal: true,
-      }),
+      mkFinding(
+        "cmd-secret-exfil",
+        "exfiltration",
+        "critical",
+        "high",
+        excerpt,
+        {
+          terminal: true,
+        },
+      ),
     );
   }
   if (GLOBAL_INSTALL_RE.test(text)) {
-    out.push(mkFinding("cmd-install-global", "command", "medium", "medium", excerpt));
-  } else if ((WRITE_RE.test(text) && PERSIST_PATH_RE.test(text)) || CRONTAB_RE.test(text)) {
+    out.push(
+      mkFinding("cmd-install-global", "command", "medium", "medium", excerpt),
+    );
+  } else if (
+    (WRITE_RE.test(text) && PERSIST_PATH_RE.test(text)) ||
+    CRONTAB_RE.test(text)
+  ) {
     out.push(mkFinding("cmd-persist", "command", "high", "medium", excerpt));
   }
   if (NPX_RE.test(text)) {
-    out.push(mkFinding("cmd-supply-chain", "supply-chain", "medium", "medium", excerpt));
+    out.push(
+      mkFinding(
+        "cmd-supply-chain",
+        "supply-chain",
+        "medium",
+        "medium",
+        excerpt,
+      ),
+    );
   }
   if (INSTALL_RE.test(text)) {
     out.push(mkFinding("cmd-install", "command", "low", "medium", excerpt));
@@ -215,7 +253,8 @@ function classifySegment(text: string): Finding[] {
 function toChains(segs: PipelineSegment[]): PipelineSegment[][] {
   const chains: PipelineSegment[][] = [];
   for (const s of segs) {
-    if (s.sep === "pipe" && chains.length > 0) chains[chains.length - 1].push(s);
+    if (s.sep === "pipe" && chains.length > 0)
+      chains[chains.length - 1].push(s);
     else chains.push([s]);
   }
   return chains;
@@ -231,7 +270,10 @@ export function scanCommand(command: string): ScanResult {
   for (const chain of toChains(splitPipeline(command))) {
     const segData = chain.map((seg) => {
       const isShell = SHELL_RE.test(seg.text);
-      const isDownload = DL_TOOLS_RE.test(seg.text) && URL_RE.test(seg.text) && !LOCAL_URL_RE.test(seg.text);
+      const isDownload =
+        DL_TOOLS_RE.test(seg.text) &&
+        URL_RE.test(seg.text) &&
+        !LOCAL_URL_RE.test(seg.text);
       const isB64Decode = B64_RE.test(seg.text);
       return { seg, isShell, isDownload, isB64Decode, pipedToShell: false };
     });
@@ -255,23 +297,45 @@ export function scanCommand(command: string): ScanResult {
       // H-5: base64-decoded data piped to a shell = obfuscated code execution.
       if (d.isB64Decode && d.pipedToShell) {
         findings.push(
-          mkFinding("cmd-obf-exec", "obfuscation", "critical", "high", excerpt, {
-            terminal: true,
-          }),
+          mkFinding(
+            "cmd-obf-exec",
+            "obfuscation",
+            "critical",
+            "high",
+            excerpt,
+            {
+              terminal: true,
+            },
+          ),
         );
       }
       if (d.isDownload && (d.isShell || d.pipedToShell)) {
-        findings.push(mkFinding("cmd-dl-exec", "command", "critical", "high", excerpt, { terminal: true }));
+        findings.push(
+          mkFinding("cmd-dl-exec", "command", "critical", "high", excerpt, {
+            terminal: true,
+          }),
+        );
       } else if (d.isDownload) {
-        findings.push(mkFinding("cmd-download", "command", "medium", "medium", excerpt));
+        findings.push(
+          mkFinding("cmd-download", "command", "medium", "medium", excerpt),
+        );
       }
       if (d.isDownload && SECRET_UPLOAD_RE.test(d.seg.text)) {
         findings.push(
-          mkFinding("cmd-secret-exfil", "exfiltration", "critical", "high", excerpt, { terminal: true }),
+          mkFinding(
+            "cmd-secret-exfil",
+            "exfiltration",
+            "critical",
+            "high",
+            excerpt,
+            { terminal: true },
+          ),
         );
       }
       for (const f of classifySegment(d.seg.text)) {
-        findings.push(d.pipedToShell ? { ...f, severity: bump(f.severity) } : f);
+        findings.push(
+          d.pipedToShell ? { ...f, severity: bump(f.severity) } : f,
+        );
       }
     }
     if (chainNetwork && chainSecretRead) {

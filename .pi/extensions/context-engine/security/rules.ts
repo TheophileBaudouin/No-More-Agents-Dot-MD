@@ -1,6 +1,11 @@
 /** Prompt-injection signature families + external reference analysis. */
 
-import { mkFinding, type Category, type Finding, type Severity } from "./types.ts";
+import {
+  mkFinding,
+  type Category,
+  type Finding,
+  type Severity,
+} from "./types.ts";
 
 export type Signature = {
   id: string;
@@ -186,7 +191,10 @@ for (const sig of SIGNATURES) {
   }
 }
 
-function classifyLine(line: string): { imperative: boolean; dangerous: boolean } {
+function classifyLine(line: string): {
+  imperative: boolean;
+  dangerous: boolean;
+} {
   return {
     imperative: IMPERATIVE_RE.test(line),
     dangerous: DANGEROUS_RE.test(line),
@@ -222,17 +230,21 @@ export function scanRules(
         }
         if (idx === -1) continue;
         const ctx = classifyLine(line);
-        const severity: Severity =
-          evaded
-            ? ctx.imperative || ctx.dangerous
-              ? "high"
-              : "medium"
-            : ctx.imperative && ctx.dangerous
-              ? "high"
-              : ctx.imperative || ctx.dangerous
-                ? "medium"
-                : "low";
-        const confidence = severity === "high" ? "high" : severity === "medium" ? "medium" : "low";
+        const severity: Severity = evaded
+          ? ctx.imperative || ctx.dangerous
+            ? "high"
+            : "medium"
+          : ctx.imperative && ctx.dangerous
+            ? "high"
+            : ctx.imperative || ctx.dangerous
+              ? "medium"
+              : "low";
+        const confidence =
+          severity === "high"
+            ? "high"
+            : severity === "medium"
+              ? "medium"
+              : "low";
         const lineNo = li + 1 + lineOffset;
         const excerpt = line.trim().slice(0, 80);
         findings.push(
@@ -318,7 +330,8 @@ const READ_VERBS = /\b(read|fetch|follow|open|get|view|check|see|visit)\b/i;
 const DOWNLOAD_VERBS = /\b(download|wget|curl|save)\b/i;
 const STRONG_INSTR = /\b(instructions?|prompt|rules?)\b/i;
 const WEAK_INSTR = /\b(guide|tutorial)\b/i;
-const EXEC_TOKENS = /\|\s*(?:ba|z|da)?sh\b|\b(?:ba|z|da)?sh\s+-c\b|\b(execute|eval)\b/i;
+const EXEC_TOKENS =
+  /\|\s*(?:ba|z|da)?sh\b|\b(?:ba|z|da)?sh\s+-c\b|\b(execute|eval)\b/i;
 const DOC_URL_RE = /\.(md|txt|rst|pdf)(?:[?#]|$)/i;
 
 /**
@@ -356,9 +369,19 @@ export function scanExternalRefs(
             terminal: true,
           }),
         );
-      } else if (DOWNLOAD_VERBS.test(ctx) && (STRONG_INSTR.test(ctx) || WEAK_INSTR.test(ctx))) {
+      } else if (
+        DOWNLOAD_VERBS.test(ctx) &&
+        (STRONG_INSTR.test(ctx) || WEAK_INSTR.test(ctx))
+      ) {
         findings.push(
-          mkFinding("ext-instructions-download", "external", "high", "high", evidence, pos),
+          mkFinding(
+            "ext-instructions-download",
+            "external",
+            "high",
+            "high",
+            evidence,
+            pos,
+          ),
         );
       } else if (STRONG_INSTR.test(ctx)) {
         findings.push(
@@ -372,9 +395,13 @@ export function scanExternalRefs(
           ),
         );
       } else if (WEAK_INSTR.test(ctx) && READ_VERBS.test(ctx)) {
-        findings.push(mkFinding("ext-doc", "external", "low", "low", evidence, pos));
+        findings.push(
+          mkFinding("ext-doc", "external", "low", "low", evidence, pos),
+        );
       } else if (DOC_URL_RE.test(url)) {
-        findings.push(mkFinding("ext-doc", "external", "low", "low", evidence, pos));
+        findings.push(
+          mkFinding("ext-doc", "external", "low", "low", evidence, pos),
+        );
       }
       // plain URL with no instruction context: no finding
     }

@@ -30,7 +30,13 @@ import {
 	scanFrontmatter,
 	type Provenance,
 } from "./security/scan.ts";
-import { approve, currentHash, isCurrent, revoke, status } from "./security/trust.ts";
+import {
+	approve,
+	currentHash,
+	isCurrent,
+	revoke,
+	status,
+} from "./security/trust.ts";
 import {
 	aggregate,
 	mkFinding,
@@ -147,7 +153,10 @@ export default function (pi: ExtensionAPI) {
 			}
 			let scan: ScanResult;
 			try {
-				scan = mergeScans(scanContext(raw, f), scanFrontmatter(frontmatterMeta(raw, f)));
+				scan = mergeScans(
+					scanContext(raw, f),
+					scanFrontmatter(frontmatterMeta(raw, f)),
+				);
 			} catch (err) {
 				// Fail-safe: a scan error is treated as high risk, never a silent load.
 				console.error(`[${BRAND}] ${f}: scan error: ${(err as Error).message}`);
@@ -168,7 +177,9 @@ export default function (pi: ExtensionAPI) {
 			try {
 				trusted = status(abs, raw) === "trusted";
 			} catch (err) {
-				console.error(`[${BRAND}] ${f}: trust store error: ${(err as Error).message}`);
+				console.error(
+					`[${BRAND}] ${f}: trust store error: ${(err as Error).message}`,
+				);
 			}
 			// Provenance (best-effort): project trust + git tracking + mtime.
 			// ctx without isProjectTrusted is treated as trusted (no nudge);
@@ -197,19 +208,17 @@ export default function (pi: ExtensionAPI) {
 				else console.log(msg);
 			} else if (ctx?.hasUI) {
 				const details =
-					scan.findings
-						.map((x) => `- [${x.id}] ${x.evidence}`)
-						.join("\n") || "(no details)";
-				const ok = await ctx.ui.confirm(
-					`${scan.level} rule file: ${f}`,
-					details,
-				);
+					scan.findings.map((x) => `- [${x.id}] ${x.evidence}`).join("\n") ||
+					"(no details)";
+				const ok = await ctx.ui.confirm(`${scan.level} rule file: ${f}`, details);
 				if (ok) {
 					try {
 						approve(abs, raw, scan.level, prov);
 						trusted = true; // explicit user approval is trust
 					} catch (err) {
-						console.error(`[${BRAND}] ${f}: approve failed: ${(err as Error).message}`);
+						console.error(
+							`[${BRAND}] ${f}: approve failed: ${(err as Error).message}`,
+						);
 					}
 					loaded = true;
 				} else {
@@ -251,9 +260,7 @@ export default function (pi: ExtensionAPI) {
 			);
 		}
 		if (rules.length > 0) {
-			console.log(
-				`[${BRAND}] ${rules.length} rule(s) loaded from .pi/context/`,
-			);
+			console.log(`[${BRAND}] ${rules.length} rule(s) loaded from .pi/context/`);
 		}
 	}
 
@@ -402,9 +409,7 @@ export default function (pi: ExtensionAPI) {
 			}
 		}
 		if (chunks.length === 0) return;
-		const injected = chunks
-			.map((r) => `## ${r.name}\n\n${r.body}`)
-			.join("\n\n");
+		const injected = chunks.map((r) => `## ${r.name}\n\n${r.body}`).join("\n\n");
 		return { systemPrompt: `${event.systemPrompt}\n\n${injected}` };
 	});
 
@@ -544,9 +549,7 @@ export default function (pi: ExtensionAPI) {
 				case "annotate": {
 					patch ??= {};
 					if (r.action.append) {
-						const base = Array.isArray(patch.content)
-							? patch.content
-							: event.content;
+						const base = Array.isArray(patch.content) ? patch.content : event.content;
 						patch.content = [...base, { type: "text", text: r.action.append }];
 					}
 					if (r.action.details !== undefined) {
@@ -767,15 +770,23 @@ export default function (pi: ExtensionAPI) {
 		description:
 			"No More Agents Dot MD: /nma (list), /nma reload, /nma status, /nma share, /nma security, /nma trust <file>, /nma untrust <file>",
 		getArgumentCompletions: (prefix: string) => {
-			const items = ["reload", "status", "share", "security", "trust", "untrust"].flatMap(
-				(o) => (o.startsWith(prefix) ? [{ value: o, label: o }] : []),
-			);
+			const items = [
+				"reload",
+				"status",
+				"share",
+				"security",
+				"trust",
+				"untrust",
+			].flatMap((o) => (o.startsWith(prefix) ? [{ value: o, label: o }] : []));
 			return items.length > 0 ? items : null;
 		},
 		handler: async (args, ctx) => {
 			const parts = args.trim().split(/\s+/);
 			const cmd = parts[0] ?? "";
-			const notify = (msg: string, level: "info" | "warning" | "error" = "info") => {
+			const notify = (
+				msg: string,
+				level: "info" | "warning" | "error" = "info",
+			) => {
 				if (ctx.hasUI) ctx.ui.notify(`[${BRAND}] ${msg}`, level);
 				else console.log(`[${BRAND}] ${msg}`);
 			};
@@ -790,7 +801,10 @@ export default function (pi: ExtensionAPI) {
 				return;
 			}
 			if (cmd === "security") {
-				const lines = [`**Security scan — ${lastScan.size} file(s)**`, `**Command guard:** ${guardArmed.size > 0 ? "ON" : "OFF"}`];
+				const lines = [
+					`**Security scan — ${lastScan.size} file(s)**`,
+					`**Command guard:** ${guardArmed.size > 0 ? "ON" : "OFF"}`,
+				];
 				for (const [f, s] of lastScan) {
 					const state = s.loaded ? "loaded" : "BLOCKED";
 					lines.push(
@@ -799,7 +813,11 @@ export default function (pi: ExtensionAPI) {
 					for (const x of s.findings) lines.push(`  - [${x.id}] ${x.evidence}`);
 				}
 				if (lastScan.size === 0) lines.push("_No rule files scanned yet._");
-				pi.sendMessage({ customType: BRAND, content: lines.join("\n"), display: true });
+				pi.sendMessage({
+					customType: BRAND,
+					content: lines.join("\n"),
+					display: true,
+				});
 				return;
 			}
 			if (cmd === "trust" || cmd === "untrust") {
@@ -867,8 +885,7 @@ export default function (pi: ExtensionAPI) {
 					`**Once injections:** ${injectedOnce.size}`,
 					`**Pending context:** ${pendingInject.length}`,
 					`**Actions (by type):** ${
-						[...counts.entries()].map(([a, n]) => `${a} ${n}`).join(", ") ||
-						"none"
+						[...counts.entries()].map(([a, n]) => `${a} ${n}`).join(", ") || "none"
 					}`,
 					"",
 					"**Last actions**",
