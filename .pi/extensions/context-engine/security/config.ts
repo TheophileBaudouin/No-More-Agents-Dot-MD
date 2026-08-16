@@ -14,6 +14,19 @@ export function isNetworkEnabled(): boolean {
   return process.env.NMA_NETWORK !== "0";
 }
 
+/**
+ * Policy: the command guard (barrier B) is armed only while at least one
+ * loaded rule file is NOT explicitly trusted (hash-approved) by the user.
+ * No context files, or all trusted => the extension never imposes command
+ * confirmations. Rule-declared `action: confirm` is unaffected (user design).
+ */
+export function isGuardArmed(
+  files: Iterable<{ loaded: boolean; trusted: boolean }>,
+): boolean {
+  for (const f of files) if (f.loaded && !f.trusted) return true;
+  return false;
+}
+
 export function getUrlhausKey(): string {
   return process.env.NMA_URLHAUS_KEY ?? "";
 }

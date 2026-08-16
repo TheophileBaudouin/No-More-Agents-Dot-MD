@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import {
 	getTrustFile,
+	isGuardArmed,
 	isNetworkEnabled,
 	getUrlhausKey,
 	NETWORK_CACHE_TTL_MS,
@@ -42,4 +43,21 @@ test("env overrides are honored at call time (NMA_TRUST_FILE, NMA_NETWORK, NMA_U
 		if (old.key === undefined) delete process.env.NMA_URLHAUS_KEY;
 		else process.env.NMA_URLHAUS_KEY = old.key;
 	}
+});
+
+test("isGuardArmed: false when nothing loaded or all files trusted", () => {
+	assert.equal(isGuardArmed([]), false);
+	assert.equal(isGuardArmed([{ loaded: true, trusted: true }]), false);
+	assert.equal(isGuardArmed([{ loaded: false, trusted: false }]), false);
+});
+
+test("isGuardArmed: true when any loaded file is not hash-trusted", () => {
+	assert.equal(isGuardArmed([{ loaded: true, trusted: false }]), true);
+	assert.equal(
+		isGuardArmed([
+			{ loaded: true, trusted: true },
+			{ loaded: true, trusted: false },
+		]),
+		true,
+	);
 });

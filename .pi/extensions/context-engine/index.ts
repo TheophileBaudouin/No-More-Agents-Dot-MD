@@ -78,6 +78,9 @@ export default function (pi: ExtensionAPI) {
 		string,
 		{ level: RiskLevel; findings: Finding[]; trusted: boolean; loaded: boolean }
 	>();
+	// Policy state: files loaded this session without explicit user trust.
+	// Barrier B (command guard) only runs while this set is non-empty.
+	const guardArmed = new Set<string>();
 
 	function mergeScans(a: ScanResult, b: ScanResult): ScanResult {
 		const findings = [...a.findings, ...b.findings];
@@ -124,6 +127,9 @@ export default function (pi: ExtensionAPI) {
 		dir: string,
 		ctx: ExtensionContext | undefined,
 	): Promise<Set<string>> {
+		// Rebuild scan state each gate run: stale entries (deleted files) must
+		// not keep the command guard armed after the last untrusted file is gone.
+		lastScan.clear();
 		const allowed = new Set<string>();
 		const blocked: string[] = [];
 		if (!fs.existsSync(dir)) return allowed;
@@ -199,6 +205,7 @@ export default function (pi: ExtensionAPI) {
 				if (ok) {
 					try {
 						approve(abs, raw, scan.level, prov);
+						trusted = true; // explicit user approval is trust
 					} catch (err) {
 						console.error(`[${BRAND}] ${f}: approve failed: ${(err as Error).message}`);
 					}
@@ -233,6 +240,14 @@ export default function (pi: ExtensionAPI) {
 		rules = loadContextDir(dir, (f) => allowed.has(f));
 		injectedOnce = new Set<string>();
 		pendingInject = [];
+		guardArmed.clear();
+		for (const [f, s] of lastScan) if (s.loaded && !s.trusted) guardArmed.add(f);
+		if (guardArmed.size > 0 && ctx?.hasUI && ctx.ui?.notify) {
+			ctx.ui.notify(
+				`[${BRAND}] Command guard ON: ${guardArmed.size} untrusted rule file(s) loaded. /nma security to review; /nma trust <file> to review & approve a file and relax the guard.`,
+				"warning",
+			);
+		}
 		if (rules.length > 0) {
 			console.log(
 				`[${BRAND}] ${rules.length} rule(s) loaded from .pi/context/`,
@@ -256,6 +271,10 @@ export default function (pi: ExtensionAPI) {
 		event: string,
 		ctx: ExtensionContext | undefined,
 	): Promise<string | null> {
+		if (guardArmed.size === 0) {
+			// Policy: the guard runs only while untrusted rule files are loaded.
+			return null;
+		}
 		let sr: ScanResult;
 		try {
 			sr = scanAction(tool, input);
@@ -768,7 +787,7 @@ export default function (pi: ExtensionAPI) {
 				return;
 			}
 			if (cmd === "security") {
-				const lines = [`**Security scan — ${lastScan.size} file(s)**`];
+				const lines = [`**Security scan — ${lastScan.size} file(s)**`, `**Command guard:** ${guardArmed.size > 0 ? "ON" : "OFF"}`];
 				for (const [f, s] of lastScan) {
 					const state = s.loaded ? "loaded" : "BLOCKED";
 					lines.push(
