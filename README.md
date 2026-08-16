@@ -1,3 +1,4 @@
+![npm downloads](https://img.shields.io/npm/dm/no-more-agents-dot-md)
 # No More Agents Dot MD
 
 **Context at the right moment — not always.**
