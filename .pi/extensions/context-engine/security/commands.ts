@@ -5,7 +5,7 @@ import { aggregate, mkFinding, type Finding, type ScanResult, type Severity } fr
 export type PipelineSegment = { text: string; sep: "start" | "pipe" | "seq" };
 
 /**
- * Minimal quote-aware pipeline splitter on `|`, `&&`, `;`.
+ * Minimal quote-aware pipeline splitter on `|` (pipe), `&&` and `;` (sequence).
  * Single/double/backtick quotes are respected so `echo "a | b"` stays one segment.
  */
 export function splitPipeline(command: string): PipelineSegment[] {
@@ -28,10 +28,17 @@ export function splitPipeline(command: string): PipelineSegment[] {
       i++;
       continue;
     }
-    if (c === "|" || c === ";") {
+    if (c === "|") {
       if (cur.trim() !== "") out.push({ text: cur.trim(), sep });
       cur = "";
       sep = "pipe";
+      i++;
+      continue;
+    }
+    if (c === ";") {
+      if (cur.trim() !== "") out.push({ text: cur.trim(), sep });
+      cur = "";
+      sep = "seq";
       i++;
       continue;
     }
@@ -81,6 +88,54 @@ const GLOBAL_INSTALL_RE =
 const GIT_CLONE_RE = /\bgit\s+clone\b/i;
 const SCP_RE = /\bscp\b/i;
 const B64_RE = /\b(?:base64\s+-[a-z]*d\b|openssl\s+base64\s+-[a-z]*d\b)/i;
+
+// File-mediated exec (H-4): files written (or chmod +x'ed) earlier in the same
+// command string and executed later, whatever the separator (`|`, `&&`, `;`).
+// Operates on the raw string (quote-blind like WRITE_RE above — residual FP
+// risk: quoted redirect text plus a later exec of that path; fail-safe side).
+const WRITE_FILE_RE =
+  /(?:>|>>)\s*([^\s;&|"'<>]+)|(?:curl|wget)\s+-(?:o|O)\s+([^\s;&|"'<>]+)|chmod\s+\+x\s+([^\s;&|"'<>]+)/gi;
+// Bare *.sh and shell verbs count as EXECUTION only at a command boundary
+// (^, ;, &&, |, (); after `>`/`-o`/`+x` or inside a filename they are write
+// targets / words, not executions — otherwise the write regex self-matches
+// (`curl URL > /tmp/x.sh` alone, or the trailing `sh` of `x.sh https://…`,
+// would be critical).
+const EXEC_FILE_RE =
+  /(?:^|[;&|(]\s*)(?:bash|sh|zsh|source)\s+([^\s;&|"'<>]+)|\.\/([^\s;&|"'<>]+)|(?:^|[;&|(]\s*)([A-Za-z0-9_./-]+\.sh)\b/g;
+
+/** Directory part stripped: `/tmp/x.sh` and `x.sh` compare equal. */
+const base = (p: string): string => p.replace(/^.*[/\\]/, "");
+
+/**
+ * H-4: a file written (or chmod +x'ed) earlier in the command string and
+ * executed later is download->exec, terminal, whatever the separator.
+ */
+function fileMediatedExec(command: string): Finding | null {
+  const writes: Array<{ f: string; pos: number }> = [];
+  let m: RegExpExecArray | null;
+  WRITE_FILE_RE.lastIndex = 0;
+  while ((m = WRITE_FILE_RE.exec(command))) {
+    const f = base(m[1] ?? m[2] ?? m[3] ?? "").trim();
+    if (f) writes.push({ f, pos: m.index });
+  }
+  if (writes.length === 0) return null;
+  EXEC_FILE_RE.lastIndex = 0;
+  while ((m = EXEC_FILE_RE.exec(command))) {
+    const f = base(m[1] ?? m[2] ?? m[3] ?? "").trim();
+    const at = m.index; // captured outside the closure (TS narrowing)
+    if (f && writes.some((w) => w.f === f && w.pos < at)) {
+      return mkFinding(
+        "cmd-dl-exec",
+        "command",
+        "critical",
+        "high",
+        command.trim().replace(/\s+/g, " ").slice(0, 80),
+        { terminal: true },
+      );
+    }
+  }
+  return null;
+}
 
 /** Per-segment action rules; destructive and privilege findings come first. */
 function classifySegment(text: string): Finding[] {
@@ -182,5 +237,7 @@ export function scanCommand(command: string): ScanResult {
       );
     }
   }
+  const fm = fileMediatedExec(command);
+  if (fm) findings.push(fm);
   return { level: aggregate(findings), findings };
 }
