@@ -130,8 +130,14 @@ export function sortRules(rules: Rule[]): Rule[] {
 	return [...rules].sort((a, b) => b.priority - a.priority);
 }
 
-/** Load rules from a .pi/context directory (non-recursive; README.md skipped). */
-export function loadContextDir(dir: string): Rule[] {
+/**
+ * Load rules from a .pi/context directory (non-recursive; README.md skipped).
+ * An optional filter runs after read, before parse: false -> file skipped.
+ */
+export function loadContextDir(
+	dir: string,
+	filter?: (file: string, raw: string) => boolean,
+): Rule[] {
 	if (!fs.existsSync(dir)) return [];
 	const files = fs
 		.readdirSync(dir)
@@ -139,10 +145,9 @@ export function loadContextDir(dir: string): Rule[] {
 	const rules: Rule[] = [];
 	for (const f of files) {
 		try {
-			const rule = parseContextFile(
-				fs.readFileSync(path.join(dir, f), "utf8"),
-				f,
-			);
+			const raw = fs.readFileSync(path.join(dir, f), "utf8");
+			if (filter && !filter(f, raw)) continue;
+			const rule = parseContextFile(raw, f);
 			if (rule) rules.push(rule);
 		} catch (e) {
 			console.error(`[No More Agents Dot MD] ${f}: ${(e as Error).message}`);

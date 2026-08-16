@@ -70,6 +70,19 @@ test("loadContextDir returns [] for missing dir and tolerates broken files", () 
  fs.rmSync(dir, { recursive: true, force: true });
 });
 
+test("loadContextDir filter skips rejected files before parsing", () => {
+ const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ctx-"));
+ fs.writeFileSync(path.join(dir, "keep.md"), UI_RULE);
+ fs.writeFileSync(path.join(dir, "drop.md"), UI_RULE.replace("ui-context", "drop-rule"));
+ const rules = loadContextDir(
+  dir,
+  (file, raw) => file === "keep.md" && raw.includes("ui-context"),
+ );
+ assert.equal(rules.length, 1);
+ assert.equal(rules[0].name, "ui-context");
+ fs.rmSync(dir, { recursive: true, force: true });
+});
+
 test("selectInject gates on keyword match and once", () => {
  const rules = [parseContextFile(UI_RULE, "ui.md")!];
  const injected = new Set<string>();

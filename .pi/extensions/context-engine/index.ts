@@ -4,6 +4,7 @@
  * context injected into the agent. The frontmatter is never injected.
  */
 import * as path from "node:path";
+import * as fs from "node:fs";
 import { spawn } from "node:child_process";
 import {
 	copyToClipboard,
@@ -13,6 +14,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import {
 	loadContextDir,
+	parseContextFile,
 	selectForEvent,
 	selectInject,
 	selectToolRules,
@@ -21,7 +23,15 @@ import {
 import type { Subject } from "./match.ts";
 import { scanAction, needsNetworkCheck } from "./security/actions.ts";
 import { enrichInstall } from "./security/npm.ts";
-import type { ScanResult } from "./security/types.ts";
+import { scanContext, scanFrontmatter } from "./security/scan.ts";
+import { approve, revoke, status } from "./security/trust.ts";
+import {
+	aggregate,
+	mkFinding,
+	type Finding,
+	type RiskLevel,
+	type ScanResult,
+} from "./security/types.ts";
 
 const CONTEXT_DIR = ".pi/context";
 
@@ -58,9 +68,130 @@ export default function (pi: ExtensionAPI) {
 	let injectedOnce = new Set<string>();
 	let pendingInject: string[] = [];
 	const activity: ActivityEntry[] = [];
+	const lastScan = new Map<
+		string,
+		{ level: RiskLevel; findings: Finding[]; trusted: boolean; loaded: boolean }
+	>();
 
-	function reload(cwd: string) {
-		rules = loadContextDir(path.join(cwd, CONTEXT_DIR));
+	function mergeScans(a: ScanResult, b: ScanResult): ScanResult {
+		const findings = [...a.findings, ...b.findings];
+		return { level: aggregate(findings), findings };
+	}
+
+	/** Frontmatter parsed as behavior meta; a malformed one is scanned as {} (body scan still runs). */
+	function frontmatterMeta(raw: string, file: string): Record<string, unknown> {
+		try {
+			const rule = parseContextFile(raw, file);
+			if (rule)
+				return { action: rule.action } as unknown as Record<string, unknown>;
+		} catch {
+			/* malformed frontmatter: body scan only */
+		}
+		return {};
+	}
+
+	/**
+	 * Load-time gate (barrier A): scan + trust every rule file, prompt on
+	 * medium/high, block critical, short-circuit on trusted. Returns the set of
+	 * file names allowed through to the loader. Never throws.
+	 */
+	async function securityGate(
+		dir: string,
+		ctx: ExtensionContext | undefined,
+	): Promise<Set<string>> {
+		const allowed = new Set<string>();
+		const blocked: string[] = [];
+		if (!fs.existsSync(dir)) return allowed;
+		for (const f of fs.readdirSync(dir)) {
+			if (!f.endsWith(".md") || f.toLowerCase() === "readme.md") continue;
+			const abs = path.join(dir, f);
+			let raw: string;
+			try {
+				raw = fs.readFileSync(abs, "utf8");
+			} catch (err) {
+				console.error(`[${BRAND}] ${f}: cannot read: ${(err as Error).message}`);
+				continue;
+			}
+			let scan: ScanResult;
+			try {
+				scan = mergeScans(scanContext(raw, f), scanFrontmatter(frontmatterMeta(raw, f)));
+			} catch (err) {
+				// Fail-safe: a scan error is treated as high risk, never a silent load.
+				console.error(`[${BRAND}] ${f}: scan error: ${(err as Error).message}`);
+				scan = {
+					level: "high",
+					findings: [
+						mkFinding(
+							"scan-error",
+							"command",
+							"high",
+							"high",
+							`scan failed: ${(err as Error).message}`,
+						),
+					],
+				};
+			}
+			let trusted = false;
+			try {
+				trusted = status(abs, raw) === "trusted";
+			} catch (err) {
+				console.error(`[${BRAND}] ${f}: trust store error: ${(err as Error).message}`);
+			}
+			let loaded: boolean;
+			if (trusted || scan.level === "none" || scan.level === "low") {
+				loaded = true;
+			} else if (scan.level === "critical") {
+				// Never auto-prompt for critical: explain the manual escape hatch.
+				loaded = false;
+				blocked.push(f);
+				const top = scan.findings[0]?.id ?? "unknown";
+				const msg = `[${BRAND}] BLOCKED ${f}: ${top} — run /nma trust ${f} to approve`;
+				if (ctx?.hasUI && ctx.ui?.notify) ctx.ui.notify(msg, "error");
+				else console.log(msg);
+			} else if (ctx?.hasUI) {
+				const details =
+					scan.findings
+						.map((x) => `- [${x.id}] ${x.evidence}`)
+						.join("\n") || "(no details)";
+				const ok = await ctx.ui.confirm(
+					`${scan.level} rule file: ${f}`,
+					details,
+				);
+				if (ok) {
+					try {
+						approve(abs, raw, scan.level, "user");
+					} catch (err) {
+						console.error(`[${BRAND}] ${f}: approve failed: ${(err as Error).message}`);
+					}
+					loaded = true;
+				} else {
+					loaded = false;
+					ctx.ui.notify(`[${BRAND}] Skipped ${f}`, "warning");
+				}
+			} else {
+				loaded = false;
+				console.log(`[${BRAND}] Skipped ${f} (${scan.level} risk, no UI)`);
+			}
+			if (loaded) allowed.add(f);
+			lastScan.set(f, {
+				level: scan.level,
+				findings: scan.findings,
+				trusted,
+				loaded,
+			});
+		}
+		if (blocked.length > 0) {
+			const msg = `[${BRAND}] ${blocked.length} rule file(s) blocked: ${blocked.join(", ")}`;
+			if (ctx?.hasUI && ctx.ui?.notify) ctx.ui.notify(msg, "error");
+			else console.log(msg);
+		}
+		return allowed;
+	}
+
+	async function reload(cwd: string, ctx?: ExtensionContext) {
+		const dir = path.join(cwd, CONTEXT_DIR);
+		const allowed = await securityGate(dir, ctx);
+		rules = loadContextDir(dir, (f) => allowed.has(f));
 		injectedOnce = new Set<string>();
 		pendingInject = [];
 		if (rules.length > 0) {
@@ -130,7 +261,7 @@ export default function (pi: ExtensionAPI) {
 	}
 
 	pi.on("session_start", async (_event, ctx: ExtensionContext) =>
-		reload(ctx.cwd),
+		reload(ctx.cwd, ctx),
 	);
 
 	/** Enrich a Subject with session state pi provides on every event. */
@@ -568,36 +699,92 @@ export default function (pi: ExtensionAPI) {
 		};
 	});
 
-	// /nma — manage rules from inside pi: list, reload, status, share.
+	// /nma — manage rules from inside pi: list, reload, status, share,
+	// security, trust <file>, untrust <file>.
 	// Output is shown in the transcript (pi.sendMessage), never in the input editor.
 	pi.registerCommand("nma", {
 		description:
-			"No More Agents Dot MD: /nma (list), /nma reload, /nma status, /nma share",
+			"No More Agents Dot MD: /nma (list), /nma reload, /nma status, /nma share, /nma security, /nma trust <file>, /nma untrust <file>",
 		getArgumentCompletions: (prefix: string) => {
-			const items = ["reload", "status", "share"].flatMap((o) =>
-				o.startsWith(prefix) ? [{ value: o, label: o }] : [],
+			const items = ["reload", "status", "share", "security", "trust", "untrust"].flatMap(
+				(o) => (o.startsWith(prefix) ? [{ value: o, label: o }] : []),
 			);
 			return items.length > 0 ? items : null;
 		},
 		handler: async (args, ctx) => {
-			const cmd = args.trim().split(/\s+/)[0] ?? "";
+			const parts = args.trim().split(/\s+/);
+			const cmd = parts[0] ?? "";
+			const notify = (msg: string, level: "info" | "warning" | "error" = "info") => {
+				if (ctx.hasUI) ctx.ui.notify(`[${BRAND}] ${msg}`, level);
+				else console.log(`[${BRAND}] ${msg}`);
+			};
 			if (cmd === "reload") {
 				try {
-					reload(ctx.cwd);
-					if (ctx.hasUI) {
-						ctx.ui.notify(
-							`[${BRAND}] ${rules.length} rule(s) reloaded`,
-							"info",
-						);
-					} else {
-						console.log(`[${BRAND}] ${rules.length} rule(s) reloaded`);
-					}
+					await reload(ctx.cwd, ctx);
+					notify(`${rules.length} rule(s) reloaded`);
 				} catch (err) {
 					const msg = err instanceof Error ? err.message : String(err);
-					if (ctx.hasUI)
-						ctx.ui.notify(`[${BRAND}] reload failed: ${msg}`, "error");
-					else console.error(`[${BRAND}] reload failed: ${msg}`);
+					notify(`reload failed: ${msg}`, "error");
 				}
+				return;
+			}
+			if (cmd === "security") {
+				const lines = [`**Security scan — ${lastScan.size} file(s)**`];
+				for (const [f, s] of lastScan) {
+					const state = s.loaded ? "loaded" : "BLOCKED";
+					lines.push(
+						`- ${f} → ${s.level} (${state})${s.trusted ? " [trusted]" : ""}`,
+					);
+					for (const x of s.findings) lines.push(`  - [${x.id}] ${x.evidence}`);
+				}
+				if (lastScan.size === 0) lines.push("_No rule files scanned yet._");
+				pi.sendMessage({ customType: BRAND, content: lines.join("\n"), display: true });
+				return;
+			}
+			if (cmd === "trust" || cmd === "untrust") {
+				const name = parts.slice(1).join(" ");
+				if (!name) {
+					notify(`usage: /nma ${cmd} <file>`, "error");
+					return;
+				}
+				const file = name.includes("/")
+					? path.resolve(name)
+					: path.resolve(path.join(ctx.cwd, CONTEXT_DIR), name);
+				if (cmd === "untrust") {
+					try {
+						revoke(file);
+					} catch (err) {
+						notify(`untrust failed: ${(err as Error).message}`, "error");
+						return;
+					}
+					await reload(ctx.cwd, ctx);
+					notify(`trust revoked for ${path.basename(file)}`);
+					return;
+				}
+				let raw: string;
+				try {
+					raw = fs.readFileSync(file, "utf8");
+				} catch (err) {
+					notify(`cannot read ${file}: ${(err as Error).message}`, "error");
+					return;
+				}
+				let level: RiskLevel = "high"; // fail-safe default on scan error
+				try {
+					level = mergeScans(
+						scanContext(raw, path.basename(file)),
+						scanFrontmatter(frontmatterMeta(raw, path.basename(file))),
+					).level;
+				} catch (err) {
+					console.error(`[${BRAND}] ${file}: scan error: ${(err as Error).message}`);
+				}
+				try {
+					approve(file, raw, level, "user");
+				} catch (err) {
+					notify(`trust failed: ${(err as Error).message}`, "error");
+					return;
+				}
+				await reload(ctx.cwd, ctx);
+				notify(`trusted ${path.basename(file)} (${level})`);
 				return;
 			}
 			if (cmd === "share") {
