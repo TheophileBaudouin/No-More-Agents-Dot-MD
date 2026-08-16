@@ -51,6 +51,11 @@ Every rule file is security-scanned at load (`session_start`, `/nma reload`):
 blocked. Approve a blocked file with `/nma trust <file>`, revoke with
 `/nma untrust <file>`, inspect scan results with `/nma security`.
 
+Command confirmations (the extension's own guard, not rule-declared
+`confirm` actions) only run while at least one loaded rule file is not
+explicitly trusted — approving/trusting all files silences them. `/nma
+security` shows the guard state.
+
 ## Minimal context
 
 The body is the only context the agent sees — keep it minimal. Short

