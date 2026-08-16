@@ -1,0 +1,1 @@
+npx unknown-tool init

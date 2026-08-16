@@ -1,0 +1,299 @@
+{
+  "benign/conventions.md": {
+    "expected": "none",
+    "mode": "context"
+  },
+  "benign/git-workflow.md": {
+    "expected": "none",
+    "mode": "context"
+  },
+  "benign/npm-scripts.md": {
+    "expected": "none",
+    "mode": "context"
+  },
+  "benign/team-rules.md": {
+    "expected": "none",
+    "mode": "context"
+  },
+  "benign/frontmatter-notify.md": {
+    "expected": "none",
+    "mode": "context"
+  },
+  "benign/frontmatter-inject.md": {
+    "expected": "none",
+    "mode": "context"
+  },
+  "benign/readme-note.md": {
+    "expected": "none",
+    "mode": "context"
+  },
+  "benign/style-guide.md": {
+    "expected": "none",
+    "mode": "context"
+  },
+  "benign/review-checklist.md": {
+    "expected": "none",
+    "mode": "context"
+  },
+  "benign/api-conventions.md": {
+    "expected": "none",
+    "mode": "context"
+  },
+  "prompt-injection/ignore-previous.md": {
+    "expected": "high",
+    "mode": "context"
+  },
+  "prompt-injection/system-prompt-extract.md": {
+    "expected": "high",
+    "mode": "context"
+  },
+  "prompt-injection/impersonation.md": {
+    "expected": "high",
+    "mode": "context"
+  },
+  "prompt-injection/tool-manipulation.md": {
+    "expected": "critical",
+    "mode": "context"
+  },
+  "prompt-injection/rag-poisoning.md": {
+    "expected": "high",
+    "mode": "context"
+  },
+  "prompt-injection/context-reveal.md": {
+    "expected": "high",
+    "mode": "context"
+  },
+  "prompt-injection/directive-chain.md": {
+    "expected": "high",
+    "mode": "context"
+  },
+  "prompt-injection/conditional-poison.md": {
+    "expected": "high",
+    "mode": "context"
+  },
+  "prompt-injection/critical-exec.md": {
+    "expected": "critical",
+    "mode": "context"
+  },
+  "prompt-injection/persona-hijack.md": {
+    "expected": "high",
+    "mode": "context"
+  },
+  "remote/download-follow.md": {
+    "expected": "high",
+    "mode": "context"
+  },
+  "remote/wget-instructions.md": {
+    "expected": "high",
+    "mode": "context"
+  },
+  "remote/read-then-execute.md": {
+    "expected": "critical",
+    "mode": "context"
+  },
+  "remote/run-remote-script.md": {
+    "expected": "critical",
+    "mode": "context"
+  },
+  "remote/external-rules.md": {
+    "expected": "high",
+    "mode": "context"
+  },
+  "unicode/bidi-override.md": {
+    "expected": "high",
+    "mode": "context"
+  },
+  "unicode/zerowidth.md": {
+    "expected": "high",
+    "mode": "context"
+  },
+  "unicode/homoglyph.md": {
+    "expected": "high",
+    "mode": "context"
+  },
+  "unicode/tag-chars.md": {
+    "expected": "high",
+    "mode": "context"
+  },
+  "unicode/normalization.md": {
+    "expected": "high",
+    "mode": "context"
+  },
+  "obfuscation/base64-cmd.md": {
+    "expected": "critical",
+    "mode": "context"
+  },
+  "obfuscation/base64-pipe-sh.md": {
+    "expected": "critical",
+    "mode": "context"
+  },
+  "obfuscation/hex-encoded.md": {
+    "expected": "critical",
+    "mode": "context"
+  },
+  "obfuscation/url-encoded.md": {
+    "expected": "high",
+    "mode": "context"
+  },
+  "obfuscation/double-encoded.md": {
+    "expected": "critical",
+    "mode": "context"
+  },
+  "obfuscation/html-comment-hidden.md": {
+    "expected": "high",
+    "mode": "context"
+  },
+  "exfiltration/ssh-exfil.md": {
+    "expected": "high",
+    "mode": "context"
+  },
+  "exfiltration/api-keys.md": {
+    "expected": "medium",
+    "mode": "context",
+    "note": "subtle: imperative without a dangerous token, stays medium"
+  },
+  "exfiltration/curl-upload.md": {
+    "expected": "critical",
+    "mode": "command"
+  },
+  "exfiltration/scp-exfil.md": {
+    "expected": "critical",
+    "mode": "command"
+  },
+  "exfiltration/keys-via-curl.md": {
+    "expected": "critical",
+    "mode": "command"
+  },
+  "commands/curl-bash.md": {
+    "expected": "critical",
+    "mode": "command"
+  },
+  "commands/wget-sh.md": {
+    "expected": "critical",
+    "mode": "command"
+  },
+  "commands/rm-rf-root.md": {
+    "expected": "critical",
+    "mode": "command"
+  },
+  "commands/cat-ssh-curl.md": {
+    "expected": "high",
+    "mode": "command"
+  },
+  "commands/sudo-crontab.md": {
+    "expected": "high",
+    "mode": "command"
+  },
+  "commands/dd-disk.md": {
+    "expected": "critical",
+    "mode": "command"
+  },
+  "commands/nc-exfil.md": {
+    "expected": "critical",
+    "mode": "command"
+  },
+  "commands/npm-install.md": {
+    "expected": "low",
+    "mode": "command"
+  },
+  "commands/npm-ci.md": {
+    "expected": "low",
+    "mode": "command"
+  },
+  "commands/git-status.md": {
+    "expected": "none",
+    "mode": "command"
+  },
+  "commands/rm-node-modules.md": {
+    "expected": "low",
+    "mode": "command"
+  },
+  "commands/cat-package-json.md": {
+    "expected": "none",
+    "mode": "command"
+  },
+  "commands/pip-install.md": {
+    "expected": "low",
+    "mode": "command"
+  },
+  "supply-chain/npx-unknown.md": {
+    "expected": "low",
+    "mode": "command"
+  },
+  "supply-chain/git-dependency.md": {
+    "expected": "low",
+    "mode": "command"
+  },
+  "supply-chain/tarball-install.md": {
+    "expected": "low",
+    "mode": "command"
+  },
+  "supply-chain/curl-sudo-bash.md": {
+    "expected": "critical",
+    "mode": "command"
+  },
+  "supply-chain/npm-publish.md": {
+    "expected": "none",
+    "mode": "command"
+  },
+  "false-positives/explaining-injection.md": {
+    "expected": "low",
+    "mode": "context"
+  },
+  "false-positives/readme-quote.md": {
+    "expected": "low",
+    "mode": "context"
+  },
+  "false-positives/security-doc-ssh.md": {
+    "expected": "none",
+    "mode": "context"
+  },
+  "false-positives/legit-base64-token.md": {
+    "expected": "none",
+    "mode": "context"
+  },
+  "false-positives/svg-data-uri.md": {
+    "expected": "none",
+    "mode": "context"
+  },
+  "false-positives/code-block-examples.md": {
+    "expected": "none",
+    "mode": "context"
+  },
+  "false-positives/sudo-prose.md": {
+    "expected": "none",
+    "mode": "context"
+  },
+  "false-positives/owasp-link.md": {
+    "expected": "none",
+    "mode": "context"
+  },
+  "false-positives/changelog-cve.md": {
+    "expected": "none",
+    "mode": "context"
+  },
+  "false-positives/docs-link.md": {
+    "expected": "none",
+    "mode": "context"
+  },
+  "false-positives/install-doc.md": {
+    "expected": "none",
+    "mode": "context"
+  },
+  "false-positives/quoted-attack-list.md": {
+    "expected": "medium",
+    "mode": "context"
+  },
+  "false-positives/security-review.md": {
+    "expected": "none",
+    "mode": "context"
+  },
+  "false-positives/git-clone-doc.md": {
+    "expected": "none",
+    "mode": "context"
+  },
+  "false-positives/inline-curl-doc.md": {
+    "expected": "none",
+    "mode": "context"
+  }
+}
