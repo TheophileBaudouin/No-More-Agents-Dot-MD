@@ -109,6 +109,9 @@ Registered by the extension; usable inside pi (TUI):
 | `/nma` | List loaded rules: name, events, action type, priority, file, match summary |
 | `/nma reload` | Re-read `.pi/context/` — no restart needed; confirms via notification |
 | `/nma status` | Session activity: loaded count, `once` injections, pending context, per-action counters, last 10 journal entries |
+| `/nma security` | Per-file scan level, load state, trust state, findings — the state of the command guard (ON/OFF) |
+| `/nma trust <file> [--yes]` | Re-scan + approve a rule file (stores path + SHA-256); refuses if the scan errors unless `--yes`; requires a confirmation for high/critical (or `--yes` without a UI) |
+| `/nma untrust <file>` | Revoke the approval and reload immediately |
 | `/nma share` | Open the community submission form (awesome-No-More-Agents-Dot-MD) in the browser and copy its URL to the clipboard |
 
 ## Automatic notifications
@@ -126,7 +129,21 @@ The engine also informs you without being asked (only when a UI is present):
 | `frontmatter.ts` | YAML-subset parser (zero dependencies) |
 | `match.ts` | the 10 match keys, pure — no pi imports |
 | `engine.ts` | rule model, loader, validation, `selectForEvent` — pure |
-| `index.ts` | pi wiring: subjects, handlers, `/nma` — the only file importing pi |
+| `index.ts` | pi wiring: subjects, handlers, `/nma`, security gate + action barrier — the only file importing pi |
+| `security/types.ts` | findings, risk levels, weights, aggregation |
+| `security/scan.ts` | scan pipeline: decode → unicode → markdown → rules → external refs → code blocks; provenance + nudge |
+| `security/rules.ts` | prompt-injection signatures + external-ref classifier |
+| `security/commands.ts` | shell pipeline analysis (destructive, exec, exfil, secrets) |
+| `security/encoding.ts` | base64/hex/URL decoders, depth-capped, exhaustion signal |
+| `security/unicode.ts` | zero-width/BIDI/homoglyph detection |
+| `security/markdown.ts` | HTML comments + link-text extraction (positions preserved) |
+| `security/position.ts` | O(log n) line index for finding positions |
+| `security/actions.ts` | tool-action scanning (bash-like + read/write/edit) |
+| `security/trust.ts` | trust store (path + SHA-256, atomic 0600 writes) |
+| `security/npm.ts` | npm registry + OSV enrichment for install commands |
+| `security/urlhaus.ts` | opt-in host reputation — tested, not wired into the pipeline |
+| `security/config.ts` | env overrides (`NMA_TRUST_FILE`, `NMA_NETWORK`, `NMA_URLHAUS_KEY`), network TTL/timeout |
 
 Everything a rule can say is in this page. If a capability is not listed here,
 it does not exist yet — see [Architecture](architecture.md) for how to extend.
+The security mechanics are documented in [Security model](security.md).

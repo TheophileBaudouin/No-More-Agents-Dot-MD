@@ -1,4 +1,5 @@
 ![npm downloads](https://img.shields.io/npm/dm/no-more-agents-dot-md)
+
 # No More Agents Dot MD
 
 **Context at the right moment — not always.**
@@ -30,11 +31,20 @@ But stopping there felt like a shame: you'd only be able to produce files compat
         ├── index.ts         #   event wiring + /nma command
         ├── engine.ts        #   rule model + loader + validation
         ├── match.ts         #   declarative matcher
-        └── frontmatter.ts   #   YAML-subset parser
+        ├── frontmatter.ts   #   YAML-subset parser
+        └── security/        #   scan gate + action barrier + trust
+            ├── scan.ts      #   scan pipeline (decode → rules → code)
+            ├── rules.ts     #   prompt-injection signatures
+            ├── commands.ts  #   shell pipeline analysis
+            ├── encoding.ts  #   base64/hex/URL decoders
+            ├── trust.ts     #   trust store (path + SHA-256)
+            └── …            #   13 modules total
 skill/context-engine/        # the skill (installed by pi)
 ```
 
 `.pi/context/` is **yours** — the repository ships no rules. Create it with `mkdir -p .pi/context`, or ask the agent: the skill creates it for you.
+
+**Security is built in.** Every rule file is scanned before it loads (obfuscation, prompt-injection, external refs, frontmatter-as-code) and gated through a trust store: `critical` is blocked, `medium`/`high` confirm, trusted files load silently. While any loaded file is not yet trusted, tool commands are scanned too. See the [Security model](documentation/security.md) for the honest limits.
 
 ## Install
 
@@ -48,13 +58,10 @@ Or from git:
 pi install git:github.com/TheophileBaudouin/No-More-Agents-Dot-MD
 ```
 
-Restart pi in a project. A fresh install shows:
-
-```text
-[No More Agents Dot MD] 0 rule(s) loaded from .pi/context/
-```
-
-That's normal — rules are user-created, the repository ships none. Ask the agent for your first rule, or follow [writing-rules](documentation/writing-rules.md).
+Restart pi in a project. With no rules yet, the engine loads silently — it
+only logs when rules exist (e.g. `[No More Agents Dot MD] 2 rule(s) loaded
+from .pi/context/`). That silence is normal: rules are user-created, the
+repository ships none.
 
 ## Write a rule
 
@@ -99,6 +106,9 @@ Reload with `/nma reload` — no restart needed. Full schema in `skill/context-e
 - `/nma` — list the loaded rules (name, events, action, priority, file).
 - `/nma reload` — reload `.pi/context/` without restarting pi.
 - `/nma status` — what fired this session (injections, blocks, journal).
+- `/nma security` — per-file scan level, load state, trust state, command guard ON/OFF.
+- `/nma trust <file> [--yes]` — scan + approve a rule file; `/nma untrust <file>` — revoke.
+- `/nma share` — open the community submission form.
 
 ## Share your rules
 
@@ -109,7 +119,7 @@ Found a rule worth keeping? Share it. **Awesome No-More-Agents-Dot-MD** is the c
 
 ## Documentation
 
-- [documentation/](documentation/) — the human guide: [installation](documentation/installation.md), [writing rules](documentation/writing-rules.md), [examples](documentation/examples.md), [reference](documentation/reference.md), [architecture](documentation/architecture.md).
+- [documentation/](documentation/) — the human guide: [installation](documentation/installation.md), [writing rules](documentation/writing-rules.md), [examples](documentation/examples.md), [reference](documentation/reference.md), [architecture](documentation/architecture.md), [security model](documentation/security.md).
 - The skill in `skill/context-engine/` is the documentation for the LLM.
 
 ## Verify
@@ -126,10 +136,11 @@ With a few rules of your own (see the [examples](documentation/examples.md)):
 ## Test
 
 ```bash
-cd .pi/extensions/context-engine && node --test "*.test.ts"
+cd .pi/extensions/context-engine && node --test "*.test.ts" "security/*.test.ts"
 ```
 
-Zero npm dependencies; runs on Node ≥ 22.6 (native TS type-stripping).
+Zero runtime npm dependencies (native `fetch` for the optional network
+signals); runs on Node ≥ 22.6 (native TS type-stripping).
 
 ## What a context file looks like
 

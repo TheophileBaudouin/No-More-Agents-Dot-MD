@@ -18,8 +18,9 @@ rule, one rule per topic:
 ```
 
 The directory is **yours**: the engine ships without it, so nothing is
-pre-configured. A fresh install simply loads zero rules — the startup message
-`0 rule(s) loaded from .pi/context/` is normal until you write some.
+pre-configured. A fresh install simply loads zero rules — silently: the engine
+only logs once rules exist (`2 rule(s) loaded from .pi/context/`), and
+loading nothing is normal until you write some.
 
 To create it, run `mkdir -p .pi/context` — or simply ask the agent for a rule
 ("add a context rule for X"): the `no-more-agents-dot-md` skill creates the directory
@@ -169,9 +170,10 @@ any), or `{contains: [...]}` / `{regex: [...]}` for explicit control.
 
 ## Common mistakes
 
-- **Missing `events:`** — the file is loaded but never considered. The engine
-  *does* warn about unknown/incompatible combinations at load time, so read the
-  startup message.
+- **Missing `events:`** — the file **fails to load** and is skipped with a
+  clear console message (`events must be a non-empty list`). Read the startup
+  message and fix it — a file without `events` is never loaded, not even
+  "inert".
 - **Frontmatter typos** — an unknown event or an action that cannot run on that
   event makes the file **fail to load** (with a clear message). Fix and
   `/nma reload`.
@@ -184,4 +186,3 @@ any), or `{contains: [...]}` / `{regex: [...]}` for explicit control.
 
 Browse ready-to-copy recipes in [Examples](examples.md), or go deep on the full
 contract in [Reference](reference.md).
-[Reference](reference.md).

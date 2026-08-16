@@ -99,6 +99,12 @@ priority: high
 - `/nma reload` — reloads `.pi/context/` immediately.
 - `/nma status` — session state: loaded rules, `once` injections, pending
   context, action journal (last 10).
+- `/nma security` — per-file scan level, load state, trust state, command
+  guard ON/OFF.
+- `/nma trust <file> [--yes]` — scan + approve a rule file (refuses on scan
+  error unless `--yes`; high/critical require confirmation or `--yes`).
+- `/nma untrust <file>` — revoke an approval and reload.
+- `/nma share` — open the community submission form.
 
 ## Notifications
 

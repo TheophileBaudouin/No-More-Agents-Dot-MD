@@ -24,9 +24,15 @@ pi install https://github.com/TheophileBaudouin/No-More-Agents-Dot-MD
 ```
 
 > **Security note:** pi packages run with full system access, like any pi
-> extension. This package contains no network calls and no dependencies — it
-> only reads `.pi/context/` and reacts to session events. Still, the usual rule
-> applies: review source code before trusting any third-party package.
+> extension. This package has **zero runtime dependencies** and makes **no
+> network calls at load time** — it reads `.pi/context/` and reacts to session
+> events. Two optional behaviors do touch the network, both disabled by
+> default or easy to turn off: on install commands the scanner can query the
+> npm registry + OSV (`NMA_NETWORK=0` disables all of it), and a
+> host-reputation module is opt-in (`NMA_URLHAUS_KEY`, currently not wired
+> into the decision pipeline). It also writes a small trust file
+> (`~/.pi/agent/nma-trust.json`). Still, the usual rule applies: review
+> source code before trusting any third-party package.
 
 ### What the install does NOT do
 
@@ -56,23 +62,23 @@ cp -r <repo>/skill/context-engine ~/.pi/agent/skills/
 
 ## Verify it works
 
-Start pi in the project. You should see the engine load your rules:
-
-```text
-[No More Agents Dot MD] 0 rule(s) loaded from .pi/context/
-```
-
-`0 rule(s)` is normal on a fresh install: the repository ships no rules, and
-`.pi/context/` does not exist yet. The count goes up as you write rules (see
-[Writing rules](writing-rules.md)). The engine does not complain — it just
-waits. That's fine: rules are optional.
+Start pi in the project. With no rules yet, the engine loads silently — it
+only logs when rules exist (e.g. `[No More Agents Dot MD] 2 rule(s) loaded
+from .pi/context/`). That silence is normal on a fresh install: the repository
+ships no rules, and `.pi/context/` does not exist yet. The count goes up as you
+write rules (see [Writing rules](writing-rules.md)). The engine does not
+complain — it just waits. That's fine: rules are optional.
 
 Then try the built-in `/nma` command inside pi:
 
 ```text
-/nma        → list the loaded rules
-/nma reload → reload rules without restarting pi
-/nma status → what fired this session
+/nma            → list the loaded rules
+/nma reload     → reload rules without restarting pi
+/nma status     → what fired this session
+/nma security   → per-file scan level, load state, trust state, findings
+/nma trust <file> [--yes] → scan + approve a rule file
+/nma untrust <file>       → revoke an approval, reload immediately
+/nma share      → open the community submission form
 ```
 
 ## Your first rule, in 60 seconds
