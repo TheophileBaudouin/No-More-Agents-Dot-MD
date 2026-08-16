@@ -264,6 +264,14 @@ function classifySegment(text: string): Finding[] {
   if (/\$\(|`/.test(text) && DL_TOOLS_RE.test(text) && URL_RE.test(text)) {
     out.push(mkFinding("cmd-net-subst", "command", "high", "high", excerpt));
   }
+  // F3: executing a script file (shell verb, interpreter on a .js/.py path,
+  // or bare ./relative exec) rates medium — the file is opaque. Inline eval
+  // flags (-c/-e/-r) are excluded: those are already covered by INTERP_RE.
+  const SCRIPT_EXEC_RE =
+    /(?:^|[;&|(]\s*)(?:(?:ba|z|da)?sh\s+(?!-)[^\s;&|"'<>]+|node\s+(?!-)[^\s;&|"'<>]+\.(?:js|mjs|cjs)\b|python3?\s+(?!-)[^\s;&|"'<>]+\.py\b|\.[\\/][^\s;&|"'<>]+)/i;
+  if (SCRIPT_EXEC_RE.test(text)) {
+    out.push(mkFinding("cmd-file-exec", "command", "medium", "medium", excerpt));
+  }
   return out;
 }
 

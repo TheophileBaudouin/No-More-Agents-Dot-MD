@@ -535,3 +535,35 @@ test("H-6: php -r and node -p inline eval are flagged too", () => {
     assert.ok(f, cmd);
   }
 });
+
+// --- F3 (HIGH): script-file execution rates medium ---
+
+test("F3: bash /tmp/x.sh -> >= medium cmd-file-exec", () => {
+  const sr = scanCommand("bash /tmp/x.sh");
+  assert.ok(["medium", "high", "critical"].includes(sr.level), `got ${sr.level}`);
+  assert.ok(sr.findings.some((f) => f.id === "cmd-file-exec"));
+});
+
+test("F3: node /tmp/x.js -> >= medium cmd-file-exec", () => {
+  const sr = scanCommand("node /tmp/x.js");
+  assert.ok(["medium", "high", "critical"].includes(sr.level), `got ${sr.level}`);
+  assert.ok(sr.findings.some((f) => f.id === "cmd-file-exec"));
+});
+
+test("F3: python3 x.py -> >= medium cmd-file-exec", () => {
+  const sr = scanCommand("python3 x.py");
+  assert.ok(["medium", "high", "critical"].includes(sr.level), `got ${sr.level}`);
+  assert.ok(sr.findings.some((f) => f.id === "cmd-file-exec"));
+});
+
+test("F3: ./x bare relative exec -> >= medium cmd-file-exec", () => {
+  const sr = scanCommand("./x");
+  assert.ok(["medium", "high", "critical"].includes(sr.level), `got ${sr.level}`);
+  assert.ok(sr.findings.some((f) => f.id === "cmd-file-exec"));
+});
+
+test("F3: bash -c 'npm test' stays unchanged (no new finding)", () => {
+  const sr = scanCommand("bash -c 'npm test'");
+  assert.equal(sr.level, "none");
+  assert.ok(!sr.findings.some((f) => f.id === "cmd-file-exec"));
+});

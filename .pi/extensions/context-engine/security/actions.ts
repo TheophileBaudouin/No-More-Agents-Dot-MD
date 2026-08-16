@@ -46,6 +46,17 @@ export function scanAction(toolName: string, input: unknown): ScanResult {
         mkFinding("act-system-write", "command", "high", "high", `${tool} ${excerpt(p)}`),
       );
     }
+    // F3: a written script's content IS a future command — scan it. Shebang
+    // files and script extensions qualify; evidence is prefixed with the tool.
+    if (tool === "write" || tool === "edit") {
+      const content = typeof obj.content === "string" ? obj.content : "";
+      const scriptPath = /\.(?:sh|bash|zsh|py|js|mjs|cjs|ts|rb|pl)$/i.test(p);
+      if (content !== "" && (scriptPath || content.startsWith("#!"))) {
+        for (const f of scanCommand(content).findings) {
+          findings.push({ ...f, evidence: `${tool} content: ${f.evidence}` });
+        }
+      }
+    }
     return { level: aggregate(findings), findings };
   }
   return { level: "none", findings: [] };
