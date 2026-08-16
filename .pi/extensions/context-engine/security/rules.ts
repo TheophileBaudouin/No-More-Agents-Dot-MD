@@ -282,7 +282,9 @@ export function scanRules(
     const b = lines[li + 1].toLowerCase();
     // Cheap pre-filter: the right side of a split trigger must start with a
     // mid-pattern word; otherwise no pattern can complete across the break.
-    const bHead = /^[a-z]+/.exec(b.trimStart())?.[0] ?? "";
+    // Evasion chars are stripped first so `\u200Binstructions` still counts.
+    const bHead =
+      /^[a-z]+/.exec(b.replace(EVASION_CHARS, "").trimStart())?.[0] ?? "";
     if (!PAIR_SPLIT_WORDS.has(bHead)) continue;
     const joined = a + " " + b;
     const evasive = EVASION_PRESENT.test(joined);

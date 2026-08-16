@@ -193,6 +193,11 @@ test("validateRegex: nested quantifiers are ReDoS-flagged", () => {
 	assert.notEqual(validateRegex("(a+)+$"), null);
 });
 
+test("validateRegex: {n,}-nested quantifiers are ReDoS-flagged", () => {
+	assert.notEqual(validateRegex("(a{2,})+"), null);
+	assert.notEqual(validateRegex("(ab{1,3})*"), null);
+});
+
 test("validateRegex: syntax errors are flagged", () => {
 	assert.notEqual(validateRegex("(a++"), null);
 });

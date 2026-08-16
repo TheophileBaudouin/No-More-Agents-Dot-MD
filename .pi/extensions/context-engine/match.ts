@@ -4,7 +4,8 @@
 // The number of patterns is bounded by the rule files, so both caches below
 // are bounded too.
 const MAX_REGEX_LEN = 200;
-const NESTED_QUANT_RE = /\([^)]*[+*][^)]*\)\s*[+*{]/;
+const NESTED_QUANT_RE =
+  /(?:\([^)]*[+*][^)]*\)\s*[+*{]|\(\s*[^)]*\{\d*,?\d*\}[^)]*\)\s*[+*{])/;
 
 export function validateRegex(r: string): string | null {
   if (r.length > MAX_REGEX_LEN)

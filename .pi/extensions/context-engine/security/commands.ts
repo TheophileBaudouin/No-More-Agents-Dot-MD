@@ -95,6 +95,7 @@ const MKFS_RE = /\bmkfs(?:\.\w+)?\b/i;
 const READ_RE = /\b(cat|tail|head|less|more|strings|type|Get-Content)\b/i;
 // .env with any real suffix (.local, .production…) is secret; only
 // example/sample/template/dist suffixes are templates. Shared with actions.ts.
+// Residual: multi-segment suffixes (.env.local.production) are not covered by design.
 export const ENV_RE =
   "\\.env(?:\\.(?!example\\b|sample\\b|template\\b|dist\\b)[A-Za-z0-9]+)?(?![A-Za-z0-9_.])";
 const SECRET_PATH_RE = new RegExp(
