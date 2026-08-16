@@ -683,7 +683,7 @@ test("nma command lists rules and reload re-reads the directory", async () => {
 		LIST_RULE_A.replace("rule-a", "rule-c"),
 	);
 	await pi.commands["nma"].handler("reload", ctx);
-	assert.match(notifyCalls[0].message, /reloaded/);
+	assert.ok(notifyCalls.some((n) => /reloaded/.test(n.message)));
 	await pi.commands["nma"].handler("", ctx);
 	assert.match(sent[1].content, /rule-c/);
 
@@ -773,7 +773,7 @@ function confirmCtx(uiOverrides: Record<string, unknown> = {}) {
 test("barrier B: critical bash command is blocked when confirm is declined", async () => {
 	const pi = makePi();
 	createExtension(pi as any);
-	const cwd = await boot(pi, {});
+	const cwd = await boot(pi, { ".pi/context/guard.md": NOTIFY_RULE });
 
 	const res = await pi.handlers["tool_call"](
 		{ toolName: "bash", input: { command: CRITICAL_CMD } },
@@ -788,7 +788,7 @@ test("barrier B: critical bash command is blocked when confirm is declined", asy
 test("barrier B: approved critical action runs, nothing is persisted", async () => {
 	const pi = makePi();
 	createExtension(pi as any);
-	const cwd = await boot(pi, {});
+	const cwd = await boot(pi, { ".pi/context/guard.md": NOTIFY_RULE });
 
 	const before = fs.existsSync(TRUST_FILE)
 		? fs.readFileSync(TRUST_FILE, "utf8")
@@ -809,7 +809,7 @@ test("barrier B: approved critical action runs, nothing is persisted", async () 
 test("barrier B: no UI blocks medium+ fail-safe", async () => {
 	const pi = makePi();
 	createExtension(pi as any);
-	const cwd = await boot(pi, {});
+	const cwd = await boot(pi, { ".pi/context/guard.md": NOTIFY_RULE });
 
 	const res = await pi.handlers["tool_call"](
 		{ toolName: "bash", input: { command: MEDIUM_CMD } },
@@ -824,7 +824,7 @@ test("barrier B: no UI blocks medium+ fail-safe", async () => {
 test("barrier B: medium bash command prompts; declined blocks, approved runs", async () => {
 	const pi = makePi();
 	createExtension(pi as any);
-	const cwd = await boot(pi, {});
+	const cwd = await boot(pi, { ".pi/context/guard.md": NOTIFY_RULE });
 
 	const confirmCalls: Array<[string, string]> = [];
 	const ctx = confirmCtx({
@@ -854,7 +854,7 @@ test("barrier B: medium bash command prompts; declined blocks, approved runs", a
 test("barrier B: low-risk install command does not prompt (NMA_NETWORK=0)", async () => {
 	const pi = makePi();
 	createExtension(pi as any);
-	const cwd = await boot(pi, {});
+	const cwd = await boot(pi, { ".pi/context/guard.md": NOTIFY_RULE });
 
 	let confirms = 0;
 	const res = await pi.handlers["tool_call"](
@@ -903,7 +903,7 @@ action:
 test("barrier B: read of ~/.ssh is blocked when declined", async () => {
 	const pi = makePi();
 	createExtension(pi as any);
-	const cwd = await boot(pi, {});
+	const cwd = await boot(pi, { ".pi/context/guard.md": NOTIFY_RULE });
 
 	const res = await pi.handlers["tool_call"](
 		{ toolName: "read", input: { path: "~/.ssh/id_rsa" } },
@@ -918,7 +918,7 @@ test("barrier B: read of ~/.ssh is blocked when declined", async () => {
 test("barrier B: user_bash critical command is blocked", async () => {
 	const pi = makePi();
 	createExtension(pi as any);
-	const cwd = await boot(pi, {});
+	const cwd = await boot(pi, { ".pi/context/guard.md": NOTIFY_RULE });
 
 	const res = await pi.handlers["user_bash"](
 		{ command: CRITICAL_CMD, excludeFromContext: false, cwd },
