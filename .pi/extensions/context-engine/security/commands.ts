@@ -79,6 +79,7 @@ const INSTALL_RE = /\b(?:npm\s+(?:install|i|ci)\b(?!\s+-g\b)|yarn\s+add\b|bun\s+
 const GLOBAL_INSTALL_RE =
   /\b(?:npm\s+-g\s+(?:install|i)\b|npm\s+(?:install|i)\s+-g\b|pnpm\s+add\s+-g\b|yarn\s+global\s+add\b|apt(?:-get)?\s+install\b|dnf\s+install\b|yum\s+install\b|zypper\s+install\b|brew\s+install\b)/i;
 const GIT_CLONE_RE = /\bgit\s+clone\b/i;
+const SCP_RE = /\bscp\b/i;
 const B64_RE = /\b(?:base64\s+-[a-z]*d\b|openssl\s+base64\s+-[a-z]*d\b)/i;
 
 /** Per-segment action rules; destructive and privilege findings come first. */
@@ -93,6 +94,13 @@ function classifySegment(text: string): Finding[] {
   }
   if (READ_RE.test(text) && SECRET_PATH_RE.test(text)) {
     out.push(mkFinding("cmd-secret-read", "secrets", "high", "high", excerpt));
+  }
+  if (SCP_RE.test(text) && SECRET_PATH_RE.test(text)) {
+    out.push(
+      mkFinding("cmd-secret-exfil", "exfiltration", "critical", "high", excerpt, {
+        terminal: true,
+      }),
+    );
   }
   if (GLOBAL_INSTALL_RE.test(text)) {
     out.push(mkFinding("cmd-install-global", "command", "medium", "medium", excerpt));

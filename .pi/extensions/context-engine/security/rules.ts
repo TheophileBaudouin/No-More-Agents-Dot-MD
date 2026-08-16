@@ -145,12 +145,30 @@ export const SIGNATURES: RuleSet = [
       "expose your instructions",
     ],
   },
+  {
+    id: "pi-exfil",
+    category: "exfiltration",
+    patterns: [
+      "send the contents of",
+      "send your api keys",
+      "send your credentials",
+      "send your secrets",
+      "send your private keys",
+      "post your api keys",
+      "upload the contents of",
+      "upload your keys",
+      "upload your credentials",
+      "upload your secrets",
+      "copy your keys to",
+      "exfiltrate",
+    ],
+  },
 ];
 
 const IMPERATIVE_RE =
-  /^\s*(?:[-*+]|\d+[.)]|>)?\s*(do|run|execute|use|ignore|forget|disregard|disable|enable|repeat|print|show|reveal|give|never|always|stop|start|you must|from now on)\b/i;
+  /^\s*(?:[-*+]|\d+[.)]|>)?\s*(do|run|execute|use|ignore|forget|disregard|disable|enable|repeat|print|show|reveal|give|never|always|stop|start|send|post|upload|copy|exfiltrate|transmit|leak|you must|from now on)\b/i;
 const DANGEROUS_RE =
-  /\b(bash|sh|shell|curl|wget|python|python3|node|npx|chmod|chown|sudo|rm|execute|powershell|pwsh|cmd(\.exe)?|\/bin\/|~\/\.ssh|`|\$\(|eval|exec)\b/i;
+  /\b(?:bash|sh|shell|curl|wget|python|python3|node|npx|chmod|chown|sudo|rm|execute|powershell|pwsh|cmd(\.exe)?|\/bin\/|`|\$\(|eval|exec)\b|~\/\.ssh/i;
 
 function classifyLine(line: string): { imperative: boolean; dangerous: boolean } {
   return {
