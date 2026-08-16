@@ -246,6 +246,10 @@ test("tool_call inject queues guidance delivered at the next context event", asy
 	assert.equal(res.messages.length, 2);
 	assert.equal(res.messages[1].role, "user");
 	assert.match(res.messages[1].content, /# Testing/);
+	assert.match(
+		res.messages[1].content,
+		/<user-context source="test-context">[\s\S]*<\/user-context>/,
+	);
 
 	// queue is drained — next context event is untouched
 	const res2 = await pi.handlers["context"]({

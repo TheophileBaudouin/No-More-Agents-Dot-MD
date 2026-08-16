@@ -247,9 +247,9 @@ test("F6: valid match.regex produces no finding", () => {
 
 test("F6 P12: hostile regex-only file hits the merged gate (never silent)", () => {
   // The bare scanContext of P12 legitimately sees only the body (none); the
-  // merged gate (calibration-style) adds the frontmatter scan: one high
-  // th-bad-regex finding aggregates to medium per the calibrated thresholds
-  // (10 pts <= 12) — the gate confirms at medium, never a silent load.
+  // merged gate (calibration-style) adds the frontmatter scan: since F12, a
+  // single th-bad-regex finding aggregates to HIGH — the gate confirms at
+  // high, never a silent load.
   const raw = `---
 name: x
 events: [tool_call]
