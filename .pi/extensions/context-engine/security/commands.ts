@@ -1,6 +1,7 @@
 /** Shell command action scanner (Task 7): pipelines -> segments -> actions. No pi imports. */
 
 import { aggregate, mkFinding, type Finding, type ScanResult, type Severity } from "./types.ts";
+import { findDecodedBlobs } from "./encoding.ts";
 
 export type PipelineSegment = { text: string; sep: "start" | "pipe" | "seq" };
 
@@ -201,7 +202,8 @@ export function scanCommand(command: string): ScanResult {
     const segData = chain.map((seg) => {
       const isShell = SHELL_RE.test(seg.text);
       const isDownload = DL_TOOLS_RE.test(seg.text) && URL_RE.test(seg.text) && !LOCAL_URL_RE.test(seg.text);
-      return { seg, isShell, isDownload, pipedToShell: false };
+      const isB64Decode = B64_RE.test(seg.text);
+      return { seg, isShell, isDownload, isB64Decode, pipedToShell: false };
     });
     for (let i = 0; i < segData.length; i++) {
       segData[i].pipedToShell = segData.slice(i + 1).some((s) => s.isShell);
@@ -210,6 +212,20 @@ export function scanCommand(command: string): ScanResult {
     const chainSecretRead = segData.some((s) => READ_RE.test(s.seg.text) && SECRET_PATH_RE.test(s.seg.text));
     for (const d of segData) {
       const excerpt = d.seg.text.trim().replace(/\s+/g, " ").slice(0, 80);
+      // H-5: decode segment content and scan it as a command (base64/hex/url).
+      // Recursion is bounded: findDecodedBlobs depth 1, each blob scanned once.
+      if (!d.isB64Decode) {
+        const { decoded } = findDecodedBlobs(d.seg.text, 1);
+        for (const blob of decoded) findings.push(...scanCommand(blob.text).findings);
+      }
+      // H-5: base64-decoded data piped to a shell = obfuscated code execution.
+      if (d.isB64Decode && d.pipedToShell) {
+        findings.push(
+          mkFinding("cmd-obf-exec", "obfuscation", "critical", "high", excerpt, {
+            terminal: true,
+          }),
+        );
+      }
       if (d.isDownload && (d.isShell || d.pipedToShell)) {
         findings.push(mkFinding("cmd-dl-exec", "command", "critical", "high", excerpt, { terminal: true }));
       } else if (d.isDownload) {

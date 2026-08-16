@@ -277,9 +277,24 @@ test("echo ... | base64 -d -> none (info only, plain decode is not dangerous)", 
   assert.equal(level(sr), "none");
 });
 
-test("echo ... | base64 -d | bash -> low (pipe-to-shell multiplies severity)", () => {
-  const sr = scanCommand("echo 'bHMgLWxh' | base64 -d | bash");
-  assert.equal(level(sr), "low");
+test("echo ... | base64 -d | bash -> critical (obfuscated exec, H-5)", () => {
+  const sr = scanCommand("echo aW1wb3J0YW50 | base64 -d | bash");
+  assert.equal(sr.level, "critical");
+  assert.ok(sr.findings.some((f) => f.id === "cmd-obf-exec" && f.terminal));
+});
+
+test("H-5: echo <b64> | base64 -d | sh is terminal (obfuscated exec)", () => {
+  const sr = scanCommand("echo aW1wb3J0YW50 | base64 -d | sh");
+  assert.equal(sr.level, "critical");
+  assert.ok(sr.findings.some((f) => f.id === "cmd-obf-exec" && f.terminal));
+});
+
+test("H-5: decoded command content is scanned as a command", () => {
+  // base64 of: dd if=/dev/zero of=/dev/sda  (>= 16 chars so the encoding
+  // scanner decodes it; scoped rm targets stay non-destructive by design)
+  const sr = scanCommand(`echo 'ZGQgaWY9L2Rldi96ZXJvIG9mPS9kZXYvc2Rh' | base64 -d`);
+  assert.equal(sr.level, "critical");
+  assert.ok(sr.findings.some((f) => f.id === "cmd-destructive"));
 });
 
 // --- pipe-to-shell multiplies piped content ---
