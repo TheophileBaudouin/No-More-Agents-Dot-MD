@@ -1,15 +1,17 @@
 /** Action barrier B (Task 11): deterministic scan of tool inputs. No pi imports. */
 
 import { aggregate, mkFinding, type Finding, type ScanResult } from "./types.ts";
-import { scanCommand } from "./commands.ts";
+import { scanCommand, ENV_RE } from "./commands.ts";
 import { extractTargets } from "./npm.ts";
 
 const BASH_TOOLS = new Set(["bash", "sh", "zsh", "shell", "pwsh", "powershell"]);
 const FILE_TOOLS = new Set(["read", "write", "edit"]);
 
 /** Secret-material paths (private keys, env files, credentials). */
-const SECRET_PATH_RE =
-  /(?:^|[\\/])\.ssh(?:[\\/]|$)|(?:^|[\\/])\.env(?!\.(?:example|sample|template|dist))(?![A-Za-z0-9_.])|\.pem(?:$|[^A-Za-z0-9])|\bid_rsa\b|\bid_ed25519\b|(?:\.aws|aws)[\\/]credentials|(?:^|[\\/])\.npmrc(?:$|[^A-Za-z0-9_.])/i;
+const SECRET_PATH_RE = new RegExp(
+  `(?:^|[\\\\/])\\.ssh(?:[\\\\/]|$)|(?:^|[\\\\/])${ENV_RE}|\\.pem(?:$|[^A-Za-z0-9])|\\bid_rsa\\b|\\bid_ed25519\\b|(?:\\.aws|aws)[\\\\/]credentials|(?:^|[\\\\/])\\.npmrc(?:$|[^A-Za-z0-9_.])`,
+  "i",
+);
 
 /** System-sensitive write targets. */
 const SENSITIVE_WRITE_RE =

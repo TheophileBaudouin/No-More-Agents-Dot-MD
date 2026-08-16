@@ -51,6 +51,16 @@ test("read of .env -> high secrets finding", () => {
   assert.ok(r.findings.some((f) => f.id === "act-secret-path" && f.severity === "high"));
 });
 
+test("F8: read of .env.local -> high secrets finding", () => {
+  const r = scanAction("read", { path: ".env.local" });
+  assert.ok(r.findings.some((f) => f.id === "act-secret-path" && f.severity === "high"));
+});
+
+test("F8: read of .env.example template stays silent", () => {
+  const r = scanAction("read", { path: "/home/me/project/.env.example" });
+  assert.equal(r.level, "none");
+});
+
 test("read of a benign file -> none", () => {
   const r = scanAction("read", { path: "src/main.ts" });
   assert.equal(r.level, "none");

