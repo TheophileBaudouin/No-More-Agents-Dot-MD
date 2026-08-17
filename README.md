@@ -44,7 +44,7 @@ skill/context-engine/        # the skill (installed by pi)
 
 `.pi/context/` is **yours** — the repository ships no rules. Create it with `mkdir -p .pi/context`, or ask the agent: the skill creates it for you.
 
-**Security is built in.** Every rule file is scanned before it loads (obfuscation, prompt-injection, external refs, frontmatter-as-code) and gated through a trust store: `critical` is blocked, `medium`/`high` confirm, trusted files load silently. While any loaded file is not yet trusted, tool commands are scanned too. See the [Security model](documentation/security.md) for the honest limits.
+**Security is built in.** Every rule file is scanned before it loads (obfuscation, prompt-injection, external refs, frontmatter-as-code) and gated through a trust store: `critical` is blocked, `medium`/`high` confirm, trusted files load silently. While any loaded file is not yet trusted, tool commands are scanned too. At the action barrier, commands containing public `http(s)` URLs can optionally be checked against URLhaus (`NMA_URLHAUS_KEY`); a listed host is treated as `critical` and terminal. Network checks never run at load time, and `NMA_NETWORK=0` disables them. See the [Security model](documentation/security.md) for the honest limits.
 
 ## Install
 
