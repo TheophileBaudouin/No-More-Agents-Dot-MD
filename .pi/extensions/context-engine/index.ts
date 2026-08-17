@@ -1006,8 +1006,13 @@ export default function (pi: ExtensionAPI) {
 						return;
 					}
 				}
-				fs.mkdirSync(path.dirname(file), { recursive: true });
-				fs.writeFileSync(file, raw, { mode: 0o600 });
+				try {
+					fs.mkdirSync(path.dirname(file), { recursive: true });
+					fs.writeFileSync(file, raw, { mode: 0o600 });
+				} catch (err) {
+					notify(`cannot write ${file}: ${(err as Error).message}`, "error");
+					return;
+				}
 				try {
 					approve(file, raw, level, `registry:${name}`);
 				} catch (err) {

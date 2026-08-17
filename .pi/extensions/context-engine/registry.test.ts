@@ -99,6 +99,30 @@ test("fetchIndex: lists names from tree, fetches metadata, caches", async () => 
 	clearRegistryCache();
 });
 
+test("fetchIndex: malformed names (backslash, slash path, space) are ignored", async () => {
+	clearRegistryCache();
+	const tree = {
+		tree: [
+			{ path: "registry/conventional-commits/context.md" },
+			{ path: "registry/foo\\bar/context.md" },
+			{ path: "registry/evil/dir/context.md" },
+			{ path: "registry/sp ace/context.md" },
+		],
+	};
+	const f: FetchLike = async (url: string) => {
+		if (url.includes("api.github.com")) {
+			return { ok: true, status: 200, json: async () => tree, text: async () => "" };
+		}
+		if (url.endsWith("conventional-commits/metadata.yml")) {
+			return { ok: true, status: 200, json: async () => ({}), text: async () => "author: theo\ncategory: workflow\ntags: [git]\n" };
+		}
+		return { ok: false, status: 404, json: async () => ({}), text: async () => "" };
+	};
+	const entries = await fetchIndex(f);
+	assert.deepEqual(entries.map((e) => e.name), ["conventional-commits"]);
+	clearRegistryCache();
+});
+
 test("fetchIndex: metadata fetch failure skips the entry", async () => {
 	clearRegistryCache();
 	const log: string[] = [];

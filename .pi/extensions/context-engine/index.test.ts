@@ -1689,6 +1689,37 @@ test("/nma import: happy path writes file, approves trust, reloads", async () =>
 	fs.rmSync(cwd, { recursive: true, force: true });
 });
 
+test("/nma import: local write failure -> cannot write, no approve/reload", async () => {
+	const pi = makePi();
+	createExtension(pi as any);
+	const cwd = makeProject({});
+	// Deterministic local I/O failure (EISDIR, all platforms): the target
+	// path exists as a directory, so writeFileSync must throw.
+	fs.mkdirSync(path.join(cwd, ".pi/context/conventional-commits.md"), {
+		recursive: true,
+	});
+	const { ctx, notifyCalls } = makeCtx({ cwd, hasUI: true });
+	await withRegistryFetch(importFetch([]), async () => {
+		await pi.commands["nma"].handler("import conventional-commits", ctx);
+	});
+	const file = path.join(cwd, ".pi/context/conventional-commits.md");
+	assert.ok(
+		notifyCalls.some(
+			(n) =>
+				n.level === "error" &&
+				n.message.startsWith(`[No More Agents Dot MD] cannot write ${file}:`),
+		),
+		JSON.stringify(notifyCalls),
+	);
+	assert.ok(
+		!notifyCalls.some((n) => n.level !== "error" && /imported/.test(n.message)),
+		JSON.stringify(notifyCalls),
+	);
+	const raw = JSON.parse(fs.readFileSync(TRUST_FILE, "utf8"));
+	assert.ok(!raw[path.resolve(file)], "no trust approval after failed write");
+	fs.rmSync(cwd, { recursive: true, force: true });
+});
+
 test("/nma import: existing file without UI and without --yes -> refused", async () => {
 	const pi = makePi();
 	createExtension(pi as any);

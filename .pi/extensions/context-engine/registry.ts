@@ -99,7 +99,9 @@ export async function fetchIndex(f: FetchLike = fetchImpl ?? fetch): Promise<Reg
 	const names = [
 		...new Set(
 			(data.tree ?? [])
-				.map((t) => t.path?.match(/^registry\/([^/]+)\/context\.md$/)?.[1])
+				// Filename-safe slug only: a backslash or space in a name would
+				// become a path segment surprise when the .md is written locally.
+				.map((t) => t.path?.match(/^registry\/([A-Za-z0-9._-]+)\/context\.md$/)?.[1])
 				.filter((n): n is string => !!n),
 		),
 	];
