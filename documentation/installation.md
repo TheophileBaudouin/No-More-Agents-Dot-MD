@@ -109,3 +109,13 @@ Then try the built-in `/nma` command inside pi:
 
 That's the whole loop. Everything else is just variations on
 event → match → action. The [guide](writing-rules.md) takes you deeper.
+
+## Project-local copy vs global install
+
+If the extension is present in both `.pi/extensions/` (e.g. when developing
+inside the repo) and as a globally installed npm package, pi would load it
+twice. A process-wide singleton guard prevents that: the **first loaded copy
+wins** (pi loads project-local first, so the dev copy wins while developing;
+the npm copy wins everywhere else) and the other copy registers nothing —
+`/nma` and all event handlers exist exactly once. Run `/nma status` to see
+which copy is active ("Active copy: …").
