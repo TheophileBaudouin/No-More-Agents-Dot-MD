@@ -1469,3 +1469,20 @@ test("barrier B: URL command without API key keeps deterministic behavior (no fe
 
 	fs.rmSync(cwd, { recursive: true, force: true });
 });
+
+test("/nma status reports the active copy path", async () => {
+	const pi = makePi();
+	createExtension(pi as never);
+	let sent = "";
+	(pi as { sendMessage: (m: { content: string }) => void }).sendMessage = (
+		m,
+	) => {
+		sent = m.content;
+	};
+	await pi.commands.nma.handler("status", {
+		cwd: process.cwd(),
+		hasUI: false,
+		ui: { notify: () => undefined },
+	});
+	assert.match(sent, /Active copy:.*index\.ts/);
+});

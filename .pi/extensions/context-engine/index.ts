@@ -5,6 +5,7 @@
  */
 import * as path from "node:path";
 import * as fs from "node:fs";
+import { fileURLToPath } from "node:url";
 import { spawn, spawnSync } from "node:child_process";
 import {
 	copyToClipboard,
@@ -80,6 +81,12 @@ type ActivityEntry = {
 // Module scope: each install path is a distinct jiti module, so each loaded
 // copy gets its own token. Used by the singleton guard below.
 const INSTANCE = {};
+
+// This copy's own location. /nma status shows it, so it's always obvious
+// WHICH install path (project-local vs global npm package) won the guard.
+const SELF_PATH = import.meta.url.startsWith("file://")
+	? fileURLToPath(import.meta.url)
+	: import.meta.url;
 
 export default function (pi: ExtensionAPI) {
 	// Singleton guard: when both a project-local copy and the global npm
@@ -983,6 +990,7 @@ export default function (pi: ExtensionAPI) {
 				for (const a of activity)
 					counts.set(a.action, (counts.get(a.action) ?? 0) + 1);
 				const lines = [
+					`**Active copy:** \`${SELF_PATH}\``,
 					`**Rules loaded:** ${rules.length}`,
 					`**Once injections:** ${injectedOnce.size}`,
 					`**Pending context:** ${pendingInject.length}`,
