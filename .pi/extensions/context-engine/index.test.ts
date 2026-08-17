@@ -738,6 +738,7 @@ test("nma share shows the submission form URL and autocompletes all parameters",
 		value: string;
 	}>;
 	assert.deepEqual(all.map((i) => i.value).sort(), [
+		"import",
 		"reload",
 		"security",
 		"share",

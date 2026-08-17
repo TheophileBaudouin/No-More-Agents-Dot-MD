@@ -108,6 +108,7 @@ Reload with `/nma reload` — no restart needed. Full schema in `skill/context-e
 - `/nma status` — what fired this session (injections, blocks, journal).
 - `/nma security` — per-file scan level, load state, trust state, command guard ON/OFF.
 - `/nma trust <file> [--yes]` — scan + approve a rule file; `/nma untrust <file>` — revoke.
+- `/nma import <name|keywords> [--yes]` — search the [community registry](https://theophilebaudouin.github.io/awesome-No-More-Agents-Dot-MD/) by name or keywords (name, tags, category, author) and import a context file into `.pi/context/`. An exact name match imports directly; keyword matches with multiple results open a picker (or a numbered list without a UI). Imported files go through the same security scan and trust flow as local files; `--yes` answers the high/critical and overwrite confirmations when there is no UI.
 - `/nma share` — open the community submission form.
 
 ## Share your rules

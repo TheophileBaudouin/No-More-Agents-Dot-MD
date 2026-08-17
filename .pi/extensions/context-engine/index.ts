@@ -830,11 +830,12 @@ export default function (pi: ExtensionAPI) {
 	// Output is shown in the transcript (pi.sendMessage), never in the input editor.
 	pi.registerCommand("nma", {
 		description:
-			"No More Agents Dot MD: /nma (list), /nma reload, /nma status, /nma share, /nma security, /nma trust <file>, /nma untrust <file>",
+			"No More Agents Dot MD: /nma (list), /nma reload, /nma status, /nma import <name|keywords> [--yes], /nma share, /nma security, /nma trust <file>, /nma untrust <file>",
 		getArgumentCompletions: (prefix: string) => {
 			const items = [
 				"reload",
 				"status",
+				"import",
 				"share",
 				"security",
 				"trust",

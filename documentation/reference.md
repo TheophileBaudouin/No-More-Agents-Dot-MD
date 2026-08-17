@@ -113,6 +113,7 @@ Registered by the extension; usable inside pi (TUI):
 | `/nma trust <file> [--yes]` | Re-scan + approve a rule file (stores path + SHA-256); refuses if the scan errors unless `--yes`; requires a confirmation for high/critical (or `--yes` without a UI) |
 | `/nma untrust <file>` | Revoke the approval and reload immediately |
 | `/nma share` | Open the community submission form (awesome-No-More-Agents-Dot-MD) in the browser and copy its URL to the clipboard |
+| `/nma import <name\|keywords> [--yes]` | Search the [community registry](https://theophilebaudouin.github.io/awesome-No-More-Agents-Dot-MD/) by name or keywords (name, tags, category, author) and import a context file into `.pi/context/<name>.md`. An exact name match imports directly; a single keyword match imports directly; multiple matches open a UI picker, or a numbered message list (then run `/nma import <name>`) without a UI. When network is disabled (`NMA_NETWORK=0`) the command refuses. The fetched file passes through the same security scan and trust flow as local files (high/critical requires a UI confirmation, or `--yes` without a UI), an existing file asks for overwrite confirmation (or `--yes`), and the import is recorded in the trust store with provenance `registry:<name>` |
 
 ## Automatic notifications
 
