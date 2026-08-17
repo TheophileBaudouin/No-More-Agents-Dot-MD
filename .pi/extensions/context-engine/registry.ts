@@ -55,3 +55,79 @@ export function matchEntries(
 		.sort((a, b) => b.s - a.s)
 		.map((x) => x.e);
 }
+
+import { NETWORK_TIMEOUT_MS } from "./security/config.ts";
+
+const REGISTRY_REPO = "TheophileBaudouin/awesome-No-More-Agents-Dot-MD";
+const TREE_URL = `https://api.github.com/repos/${REGISTRY_REPO}/git/trees/main?recursive=1`;
+const RAW_BASE = `https://raw.githubusercontent.com/${REGISTRY_REPO}/main/registry`;
+
+export type FetchLike = (
+	url: string,
+	init?: { headers?: Record<string, string>; signal?: AbortSignal },
+) => Promise<{
+	ok: boolean;
+	status: number;
+	json(): Promise<unknown>;
+	text(): Promise<string>;
+}>;
+
+// ponytail: module-level fetch override is the test seam for the command
+// handler (urlhaus.ts uses param injection; the handler can't reach params).
+let fetchImpl: FetchLike | undefined;
+export function setFetchForTests(f: FetchLike | undefined): void {
+	fetchImpl = f;
+}
+
+// ponytail: in-memory session cache, 10 min TTL. The unauthenticated trees
+// API allows 60 req/h; one call per session per project is far under that.
+// Add a disk cache only if sessions prove to refetch often.
+const CACHE_TTL_MS = 10 * 60 * 1000;
+let indexCache: { at: number; entries: RegistryEntry[] } | null = null;
+export function clearRegistryCache(): void {
+	indexCache = null;
+}
+
+export async function fetchIndex(f: FetchLike = fetchImpl ?? fetch): Promise<RegistryEntry[]> {
+	if (indexCache && Date.now() - indexCache.at < CACHE_TTL_MS) return indexCache.entries;
+	const res = await f(TREE_URL, {
+		headers: { "User-Agent": "no-more-agents-dot-md", Accept: "application/vnd.github+json" },
+		signal: AbortSignal.timeout(NETWORK_TIMEOUT_MS * 3),
+	});
+	if (!res.ok) throw new Error(`registry tree fetch failed: HTTP ${res.status}`);
+	const data = (await res.json()) as { tree?: { path?: string }[] };
+	const names = [
+		...new Set(
+			(data.tree ?? [])
+				.map((t) => t.path?.match(/^registry\/([^/]+)\/context\.md$/)?.[1])
+				.filter((n): n is string => !!n),
+		),
+	];
+	const settled = await Promise.all(
+		names.map(async (name) => {
+			try {
+				const r = await f(`${RAW_BASE}/${name}/metadata.yml`, {
+					signal: AbortSignal.timeout(NETWORK_TIMEOUT_MS),
+				});
+				if (!r.ok) return null;
+				return parseMetadata(await r.text(), name);
+			} catch {
+				return null;
+			}
+		}),
+	);
+	const entries = settled.filter((e): e is RegistryEntry => !!e);
+	indexCache = { at: Date.now(), entries };
+	return entries;
+}
+
+export async function fetchContext(
+	name: string,
+	f: FetchLike = fetchImpl ?? fetch,
+): Promise<string> {
+	const res = await f(`${RAW_BASE}/${name}/context.md`, {
+		signal: AbortSignal.timeout(NETWORK_TIMEOUT_MS * 3),
+	});
+	if (!res.ok) throw new Error(`context fetch failed for "${name}": HTTP ${res.status}`);
+	return res.text();
+}
