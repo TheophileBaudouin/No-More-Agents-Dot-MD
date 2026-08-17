@@ -103,6 +103,8 @@ priority: high
   guard ON/OFF.
 - `/nma trust <file> [--yes]` — scan + approve a rule file (refuses on scan
   error unless `--yes`; high/critical require confirmation or `--yes`).
+- `/nma import <name|keywords> [--yes]` — import a rule from the community
+  registry.
 - `/nma untrust <file>` — revoke an approval and reload.
 - `/nma share` — open the community submission form.
 
