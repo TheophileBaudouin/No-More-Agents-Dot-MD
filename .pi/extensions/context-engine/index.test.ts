@@ -5,6 +5,11 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { spawnSync } from "node:child_process";
 import createExtension from "./index.ts";
+import {
+	clearRegistryCache,
+	setFetchForTests,
+	type FetchLike,
+} from "./registry.ts";
 
 // Security isolation: no network signals in integration tests. Read at call
 // time by config.ts, so setting it here covers every handler invocation.
@@ -1474,7 +1479,7 @@ test("/nma status reports the active copy path", async () => {
 	const pi = makePi();
 	createExtension(pi as never);
 	let sent = "";
-	(pi as { sendMessage: (m: { content: string }) => void }).sendMessage = (
+	(pi as unknown as { sendMessage: (m: { content: string }) => void }).sendMessage = (
 		m,
 	) => {
 		sent = m.content;
@@ -1485,4 +1490,174 @@ test("/nma status reports the active copy path", async () => {
 		ui: { notify: () => undefined },
 	});
 	assert.match(sent, /Active copy:.*index\.ts/);
+});
+
+// --- /nma import: registry search + selection (Task 4) ---
+// Fixture index: two entries, both authored by "theo" (drives the multi-match
+// paths). Same shape as registry.test.ts's fakeFetch.
+const IMPORT_TREE = {
+	tree: [
+		{ path: "registry/conventional-commits/context.md" },
+		{ path: "registry/conventional-commits/metadata.yml" },
+		{ path: "registry/assistant-ui/context.md" },
+		{ path: "registry/assistant-ui/metadata.yml" },
+	],
+};
+const importFetch =
+	(log: string[]): FetchLike =>
+	async (url: string) => {
+		log.push(url);
+		if (url.includes("api.github.com")) {
+			return { ok: true, status: 200, json: async () => IMPORT_TREE, text: async () => "" };
+		}
+		if (url.endsWith("conventional-commits/metadata.yml")) {
+			return { ok: true, status: 200, json: async () => ({}), text: async () => "author: theo\ncategory: workflow\ntags: [git, commits]\n" };
+		}
+		if (url.endsWith("assistant-ui/metadata.yml")) {
+			return { ok: true, status: 200, json: async () => ({}), text: async () => "author: theo\ncategory: ui\ntags: [svelte]\n" };
+		}
+		return { ok: false, status: 404, json: async () => ({}), text: async () => "" };
+	};
+
+// index.test.ts pins NMA_NETWORK=0 at file scope; import needs network on.
+// Restores both the env var and the fetch override/cache in all cases.
+function withRegistryFetch<T>(f: FetchLike, fn: () => Promise<T>): Promise<T> {
+	const oldNet = process.env.NMA_NETWORK;
+	process.env.NMA_NETWORK = "1";
+	setFetchForTests(f);
+	try {
+		return fn();
+	} finally {
+		clearRegistryCache();
+		setFetchForTests(undefined);
+		if (oldNet === undefined) delete process.env.NMA_NETWORK;
+		else process.env.NMA_NETWORK = oldNet;
+	}
+}
+
+test("/nma import: no keywords -> usage error", async () => {
+	const pi = makePi();
+	createExtension(pi as any);
+	const { ctx, notifyCalls } = makeCtx({ hasUI: true });
+	await pi.commands["nma"].handler("import", ctx);
+	assert.ok(
+		notifyCalls.some(
+			(n) => n.level === "error" && /usage: \/nma import/.test(n.message),
+		),
+		JSON.stringify(notifyCalls),
+	);
+});
+
+test("/nma import: network disabled -> error, no fetch attempted", async () => {
+	const pi = makePi();
+	createExtension(pi as any);
+	const { ctx, notifyCalls } = makeCtx({ hasUI: true });
+	const oldNet = process.env.NMA_NETWORK;
+	process.env.NMA_NETWORK = "0";
+	setFetchForTests(() => {
+		throw new Error("fetch must not be called with network disabled");
+	});
+	try {
+		await pi.commands["nma"].handler("import conventional-commits", ctx);
+	} finally {
+		setFetchForTests(undefined);
+		if (oldNet === undefined) delete process.env.NMA_NETWORK;
+		else process.env.NMA_NETWORK = oldNet;
+	}
+	assert.ok(
+		notifyCalls.some(
+			(n) => n.level === "error" && /network disabled/.test(n.message),
+		),
+		JSON.stringify(notifyCalls),
+	);
+});
+
+test("/nma import: exact name resolves directly, --yes is stripped from query", async () => {
+	const pi = makePi();
+	createExtension(pi as any);
+	const { ctx, notifyCalls } = makeCtx({ hasUI: true });
+	const log: string[] = [];
+	await withRegistryFetch(importFetch(log), async () => {
+		await pi.commands["nma"].handler("import assistant-ui --yes", ctx);
+	});
+	assert.ok(
+		notifyCalls.some((n) =>
+			/resolved "assistant-ui" -> assistant-ui/.test(n.message),
+		),
+		JSON.stringify(notifyCalls),
+	);
+});
+
+test("/nma import: no match -> warning with entry count", async () => {
+	const pi = makePi();
+	createExtension(pi as any);
+	const { ctx, notifyCalls } = makeCtx({ hasUI: true });
+	await withRegistryFetch(importFetch([]), async () => {
+		await pi.commands["nma"].handler("import zzz", ctx);
+	});
+	assert.ok(
+		notifyCalls.some(
+			(n) =>
+				n.level === "warning" &&
+				/no registry match for "zzz" \(2 entries\)/.test(n.message),
+		),
+		JSON.stringify(notifyCalls),
+	);
+});
+
+test("/nma import: single keyword match resolves directly", async () => {
+	const pi = makePi();
+	createExtension(pi as any);
+	const { ctx, notifyCalls } = makeCtx({ hasUI: true });
+	await withRegistryFetch(importFetch([]), async () => {
+		await pi.commands["nma"].handler("import svelte", ctx);
+	});
+	assert.ok(
+		notifyCalls.some((n) => /resolved "svelte" -> assistant-ui/.test(n.message)),
+		JSON.stringify(notifyCalls),
+	);
+});
+
+test("/nma import: multiple matches without UI -> sendMessage list", async () => {
+	const pi = makePi();
+	const sent: Array<{ customType: string; content: string }> = [];
+	pi.sendMessage = (msg) =>
+		void sent.push({ customType: msg.customType, content: String(msg.content) });
+	createExtension(pi as any);
+	const { ctx } = makeCtx({ hasUI: false });
+	await withRegistryFetch(importFetch([]), async () => {
+		await pi.commands["nma"].handler("import theo", ctx);
+	});
+	assert.equal(sent.length, 1);
+	assert.match(sent[0].content, /2 registry matches for "theo"/);
+	assert.match(sent[0].content, /conventional-commits/);
+	assert.match(sent[0].content, /assistant-ui/);
+	assert.match(sent[0].content, /\/nma import <name>/);
+});
+
+test("/nma import: multiple matches with UI -> select called, picked entry resolves", async () => {
+	const pi = makePi();
+	createExtension(pi as any);
+	const selectCalls: Array<[string, string[]]> = [];
+	const { ctx, notifyCalls } = makeCtx({
+		hasUI: true,
+		ui: {
+			select: async (title: string, options: string[]) => {
+				selectCalls.push([title, options]);
+				return options[0]; // picks the first option
+			},
+		},
+	});
+	await withRegistryFetch(importFetch([]), async () => {
+		await pi.commands["nma"].handler("import theo", ctx);
+	});
+	assert.equal(selectCalls.length, 1);
+	assert.equal(selectCalls[0][1].length, 2);
+	assert.match(selectCalls[0][1][0], /^conventional-commits —/);
+	assert.ok(
+		notifyCalls.some((n) =>
+			/resolved "theo" -> conventional-commits/.test(n.message),
+		),
+		JSON.stringify(notifyCalls),
+	);
 });

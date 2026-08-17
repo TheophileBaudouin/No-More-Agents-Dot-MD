@@ -47,6 +47,8 @@ import {
 	type RiskLevel,
 	type ScanResult,
 } from "./security/types.ts";
+import { isNetworkEnabled } from "./security/config.ts";
+import { fetchIndex, matchEntries } from "./registry.ts";
 
 const CONTEXT_DIR = ".pi/context";
 
@@ -858,6 +860,72 @@ export default function (pi: ExtensionAPI) {
 					const msg = err instanceof Error ? err.message : String(err);
 					notify(`reload failed: ${msg}`, "error");
 				}
+				return;
+			}
+			if (cmd === "import") {
+				// --yes is accepted now so the query never includes it; the
+				// scan/overwrite override semantics land with the import flow.
+				const query = parts
+					.slice(1)
+					.filter((p) => p !== "--yes")
+					.join(" ");
+				if (!query) {
+					notify("usage: /nma import <name|keywords> [--yes]", "error");
+					return;
+				}
+				if (!isNetworkEnabled()) {
+					notify("network disabled (NMA_NETWORK=0)", "error");
+					return;
+				}
+				let entries;
+				try {
+					entries = await fetchIndex();
+				} catch (err) {
+					notify(`registry fetch failed: ${(err as Error).message}`, "error");
+					return;
+				}
+				// Exact name match imports directly; otherwise keyword search.
+				let entry = entries.find((e) => e.name === query);
+				if (!entry) {
+					const matches = matchEntries(entries, query);
+					if (matches.length === 0) {
+						notify(
+							`no registry match for "${query}" (${entries.length} entries)`,
+							"warning",
+						);
+						return;
+					}
+					if (matches.length === 1) {
+						entry = matches[0];
+					} else if (ctx.hasUI) {
+						const picked = await ctx.ui.select(
+							`Import which context? (${matches.length} matches)`,
+							matches.map(
+								(m) => `${m.name} — ${m.category} — ${m.tags.join(", ")}`,
+							),
+						);
+						if (!picked) return;
+						entry = matches.find((m) => picked.startsWith(`${m.name} —`));
+						if (!entry) return;
+					} else {
+						pi.sendMessage({
+							customType: BRAND,
+							content:
+								`**${matches.length} registry matches for "${query}"**\n\n` +
+								matches
+									.map(
+										(m) =>
+											`- \`${m.name}\` — ${m.category} — ${m.tags.join(", ")}`,
+									)
+									.join("\n") +
+								`\n\nRun \`/nma import <name>\` to import one.`,
+							display: true,
+						});
+						return;
+					}
+				}
+				// Task 5 tail: fetch context.md, scan, trust, write, reload.
+				notify(`resolved "${query}" -> ${entry.name} (import flow: next task)`);
 				return;
 			}
 			if (cmd === "security") {
