@@ -1516,17 +1516,20 @@ const importFetch =
 		if (url.endsWith("assistant-ui/metadata.yml")) {
 			return { ok: true, status: 200, json: async () => ({}), text: async () => "author: theo\ncategory: ui\ntags: [svelte]\n" };
 		}
+		if (url.endsWith("/context.md")) {
+			return { ok: true, status: 200, json: async () => ({}), text: async () => "# Context\n" };
+		}
 		return { ok: false, status: 404, json: async () => ({}), text: async () => "" };
 	};
 
 // index.test.ts pins NMA_NETWORK=0 at file scope; import needs network on.
 // Restores both the env var and the fetch override/cache in all cases.
-function withRegistryFetch<T>(f: FetchLike, fn: () => Promise<T>): Promise<T> {
+async function withRegistryFetch<T>(f: FetchLike, fn: () => Promise<T>): Promise<T> {
 	const oldNet = process.env.NMA_NETWORK;
 	process.env.NMA_NETWORK = "1";
 	setFetchForTests(f);
 	try {
-		return fn();
+		return await fn();
 	} finally {
 		clearRegistryCache();
 		setFetchForTests(undefined);
@@ -1575,17 +1578,17 @@ test("/nma import: network disabled -> error, no fetch attempted", async () => {
 test("/nma import: exact name resolves directly, --yes is stripped from query", async () => {
 	const pi = makePi();
 	createExtension(pi as any);
-	const { ctx, notifyCalls } = makeCtx({ hasUI: true });
+	const cwd = makeProject({});
+	const { ctx, notifyCalls } = makeCtx({ cwd, hasUI: true });
 	const log: string[] = [];
 	await withRegistryFetch(importFetch(log), async () => {
 		await pi.commands["nma"].handler("import assistant-ui --yes", ctx);
 	});
 	assert.ok(
-		notifyCalls.some((n) =>
-			/resolved "assistant-ui" -> assistant-ui/.test(n.message),
-		),
+		notifyCalls.some((n) => /imported assistant-ui \(none\)/.test(n.message)),
 		JSON.stringify(notifyCalls),
 	);
+	fs.rmSync(cwd, { recursive: true, force: true });
 });
 
 test("/nma import: no match -> warning with entry count", async () => {
@@ -1608,14 +1611,16 @@ test("/nma import: no match -> warning with entry count", async () => {
 test("/nma import: single keyword match resolves directly", async () => {
 	const pi = makePi();
 	createExtension(pi as any);
-	const { ctx, notifyCalls } = makeCtx({ hasUI: true });
+	const cwd = makeProject({});
+	const { ctx, notifyCalls } = makeCtx({ cwd, hasUI: true });
 	await withRegistryFetch(importFetch([]), async () => {
 		await pi.commands["nma"].handler("import svelte", ctx);
 	});
 	assert.ok(
-		notifyCalls.some((n) => /resolved "svelte" -> assistant-ui/.test(n.message)),
+		notifyCalls.some((n) => /imported assistant-ui \(none\)/.test(n.message)),
 		JSON.stringify(notifyCalls),
 	);
+	fs.rmSync(cwd, { recursive: true, force: true });
 });
 
 test("/nma import: multiple matches without UI -> sendMessage list", async () => {
@@ -1635,11 +1640,13 @@ test("/nma import: multiple matches without UI -> sendMessage list", async () =>
 	assert.match(sent[0].content, /\/nma import <name>/);
 });
 
-test("/nma import: multiple matches with UI -> select called, picked entry resolves", async () => {
+test("/nma import: multiple matches with UI -> select called, picked entry imports", async () => {
 	const pi = makePi();
 	createExtension(pi as any);
+	const cwd = makeProject({});
 	const selectCalls: Array<[string, string[]]> = [];
 	const { ctx, notifyCalls } = makeCtx({
+		cwd,
 		hasUI: true,
 		ui: {
 			select: async (title: string, options: string[]) => {
@@ -1656,8 +1663,115 @@ test("/nma import: multiple matches with UI -> select called, picked entry resol
 	assert.match(selectCalls[0][1][0], /^conventional-commits —/);
 	assert.ok(
 		notifyCalls.some((n) =>
-			/resolved "theo" -> conventional-commits/.test(n.message),
+			/imported conventional-commits \(none\)/.test(n.message),
 		),
 		JSON.stringify(notifyCalls),
 	);
+	fs.rmSync(cwd, { recursive: true, force: true });
+});
+
+// --- /nma import: fetch, scan, trust, write, reload (Task 5) ---
+
+test("/nma import: happy path writes file, approves trust, reloads", async () => {
+	const pi = makePi();
+	createExtension(pi as any);
+	const cwd = makeProject({});
+	const { ctx } = makeCtx({ cwd, hasUI: true });
+	await withRegistryFetch(importFetch([]), async () => {
+		await pi.commands["nma"].handler("import conventional-commits", ctx);
+	});
+	const file = path.join(cwd, ".pi/context/conventional-commits.md");
+	assert.equal(fs.readFileSync(file, "utf8"), "# Context\n");
+	const raw = JSON.parse(fs.readFileSync(TRUST_FILE, "utf8"));
+	const entry = raw[path.resolve(file)];
+	assert.equal(entry.provenance, "registry:conventional-commits");
+	assert.equal(entry.level, "none");
+	fs.rmSync(cwd, { recursive: true, force: true });
+});
+
+test("/nma import: existing file without UI and without --yes -> refused", async () => {
+	const pi = makePi();
+	createExtension(pi as any);
+	const cwd = makeProject({ ".pi/context/conventional-commits.md": "OLD\n" });
+	const logs: string[] = [];
+	const orig = console.log;
+	console.log = (m: unknown) => void logs.push(String(m));
+	try {
+		await withRegistryFetch(importFetch([]), async () => {
+			await pi.commands["nma"].handler(
+				"import conventional-commits",
+				makeCtx({ cwd, hasUI: false }).ctx,
+			);
+		});
+	} finally {
+		console.log = orig;
+	}
+	assert.ok(
+		logs.some((l) => /already exists — add --yes to overwrite/.test(l)),
+		JSON.stringify(logs),
+	);
+	assert.equal(
+		fs.readFileSync(path.join(cwd, ".pi/context/conventional-commits.md"), "utf8"),
+		"OLD\n",
+	);
+	fs.rmSync(cwd, { recursive: true, force: true });
+});
+
+test("/nma import: existing file with --yes -> overwritten", async () => {
+	const pi = makePi();
+	createExtension(pi as any);
+	const cwd = makeProject({ ".pi/context/conventional-commits.md": "OLD\n" });
+	const log: string[] = [];
+	await withRegistryFetch(importFetch(log), async () => {
+		await pi.commands["nma"].handler(
+			"import conventional-commits --yes",
+			makeCtx({ cwd, hasUI: false }).ctx,
+		);
+	});
+	assert.equal(
+		fs.readFileSync(path.join(cwd, ".pi/context/conventional-commits.md"), "utf8"),
+		"# Context\n",
+	);
+	fs.rmSync(cwd, { recursive: true, force: true });
+});
+
+test("/nma import: high-risk content refused when the user declines confirm", async () => {
+	const pi = makePi();
+	createExtension(pi as any);
+	const cwd = makeProject({});
+	const confirmCalls: Array<[string, string]> = [];
+	const { ctx, notifyCalls } = makeCtx({
+		cwd,
+		hasUI: true,
+		ui: {
+			confirm: async (title: string, msg: string) => {
+				confirmCalls.push([title, msg]);
+				return false;
+			},
+		},
+	});
+	const evilFetch = (log: string[]): FetchLike => async (url: string) => {
+		log.push(url);
+		if (url.includes("api.github.com")) {
+			return { ok: true, status: 200, json: async () => IMPORT_TREE, text: async () => "" };
+		}
+		if (url.endsWith("conventional-commits/metadata.yml")) {
+			return { ok: true, status: 200, json: async () => ({}), text: async () => "author: theo\ncategory: workflow\ntags: [git]\n" };
+		}
+		if (url.endsWith("conventional-commits/context.md")) {
+			return { ok: true, status: 200, json: async () => ({}), text: async () => EVIL_MODIFY };
+		}
+		return { ok: false, status: 404, json: async () => ({}), text: async () => "" };
+	};
+	await withRegistryFetch(evilFetch([]), async () => {
+		await pi.commands["nma"].handler("import conventional-commits", ctx);
+	});
+	assert.equal(confirmCalls.length, 1);
+	assert.match(confirmCalls[0][0], /Import conventional-commits\? scanned/);
+	assert.ok(
+		notifyCalls.some((n) => /not imported: conventional-commits/.test(n.message)),
+		JSON.stringify(notifyCalls),
+	);
+	assert.ok(!fs.existsSync(path.join(cwd, ".pi/context/conventional-commits.md")));
+	fs.rmSync(cwd, { recursive: true, force: true });
 });

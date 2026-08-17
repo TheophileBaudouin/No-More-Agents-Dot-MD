@@ -48,7 +48,7 @@ import {
 	type ScanResult,
 } from "./security/types.ts";
 import { isNetworkEnabled } from "./security/config.ts";
-import { fetchIndex, matchEntries } from "./registry.ts";
+import { fetchIndex, fetchContext, matchEntries } from "./registry.ts";
 
 const CONTEXT_DIR = ".pi/context";
 
@@ -863,8 +863,8 @@ export default function (pi: ExtensionAPI) {
 				return;
 			}
 			if (cmd === "import") {
-				// --yes is accepted now so the query never includes it; the
-				// scan/overwrite override semantics land with the import flow.
+				const yesFlag = parts.includes("--yes");
+				// --yes is stripped from the query so it never leaks into search.
 				const query = parts
 					.slice(1)
 					.filter((p) => p !== "--yes")
@@ -924,8 +924,98 @@ export default function (pi: ExtensionAPI) {
 						return;
 					}
 				}
-				// Task 5 tail: fetch context.md, scan, trust, write, reload.
-				notify(`resolved "${query}" -> ${entry.name} (import flow: next task)`);
+				const name = entry.name; // from the registry index, never raw input
+				let raw: string;
+				try {
+					raw = await fetchContext(name);
+				} catch (err) {
+					notify((err as Error).message, "error");
+					return;
+				}
+				// Same fail-safe scan + trust flow as /nma trust.
+				let scan: ScanResult = {
+					level: "high", // fail-safe, reachable only via --yes
+					findings: [
+						mkFinding(
+							"scan-error",
+							"command",
+							"high",
+							"high",
+							"scan failed",
+						),
+					],
+				};
+				try {
+					scan = mergeScans(
+						scanContext(raw, `${name}.md`),
+						scanFrontmatter(frontmatterMeta(raw, `${name}.md`)),
+					);
+				} catch (err) {
+					console.error(
+						`[${BRAND}] ${name}: scan error: ${(err as Error).message}`,
+					);
+					if (!yesFlag) {
+						notify(
+							"scan failed — refusing to import (add --yes to override)",
+							"error",
+						);
+						return;
+					}
+				}
+				const { level, findings } = scan;
+				// Same semantics as /nma trust: high/critical always confirms;
+				// without a UI the only way through is an explicit --yes.
+				if (level === "critical" || level === "high") {
+					const details = fmtFindings(findings);
+					if (ctx.hasUI) {
+						const ok = await ctx.ui.confirm(
+							`Import ${name}? scanned ${level.toUpperCase()}`,
+							details,
+						);
+						if (!ok) {
+							notify(`not imported: ${name}`, "warning");
+							return;
+						}
+					} else if (!yesFlag) {
+						notify(
+							`refusing to import a ${level} file without UI — add --yes`,
+							"error",
+						);
+						return;
+					}
+				}
+				const file = path.resolve(
+					path.join(ctx.cwd, CONTEXT_DIR),
+					`${name}.md`,
+				);
+				if (fs.existsSync(file)) {
+					if (ctx.hasUI) {
+						const ok = await ctx.ui.confirm(
+							`Overwrite ${name}.md?`,
+							"A local file with this name already exists in .pi/context/.",
+						);
+						if (!ok) {
+							notify(`kept local ${name}.md`, "warning");
+							return;
+						}
+					} else if (!yesFlag) {
+						notify(
+							`${name}.md already exists — add --yes to overwrite`,
+							"error",
+						);
+						return;
+					}
+				}
+				fs.mkdirSync(path.dirname(file), { recursive: true });
+				fs.writeFileSync(file, raw, { mode: 0o600 });
+				try {
+					approve(file, raw, level, `registry:${name}`);
+				} catch (err) {
+					notify(`trust failed: ${(err as Error).message}`, "error");
+					return;
+				}
+				await reload(ctx.cwd, ctx);
+				notify(`imported ${name} (${level})`);
 				return;
 			}
 			if (cmd === "security") {
