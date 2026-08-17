@@ -21,6 +21,7 @@ import {
 	type Rule,
 } from "./engine.ts";
 import type { Subject } from "./match.ts";
+import { tryAcquireSingleton, releaseSingleton } from "./guard.ts";
 import { scanAction, needsNetworkCheck } from "./security/actions.ts";
 import { enrichInstall } from "./security/npm.ts";
 import { enrichUrlhaus } from "./security/urlhaus.ts";
@@ -76,7 +77,19 @@ type ActivityEntry = {
 	detail?: string;
 };
 
+// Module scope: each install path is a distinct jiti module, so each loaded
+// copy gets its own token. Used by the singleton guard below.
+const INSTANCE = {};
+
 export default function (pi: ExtensionAPI) {
+	// Singleton guard: when both a project-local copy and the global npm
+	// package are present, pi loads both. First copy wins; the other yields
+	// (registers nothing) so /nma and handlers are never duplicated.
+	if (!tryAcquireSingleton(INSTANCE)) return;
+	// Released before in-process reload (pi emits session_shutdown with
+	// reason "reload" first), so the reloaded copy can acquire again.
+	pi.on("session_shutdown", async () => releaseSingleton(INSTANCE));
+
 	let rules: Rule[] = [];
 	let injectedOnce = new Set<string>();
 	let pendingInject: string[] = [];

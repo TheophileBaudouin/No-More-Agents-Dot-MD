@@ -172,6 +172,22 @@ test("before_agent_start injects matched context into the system prompt", async 
 	fs.rmSync(cwd, { recursive: true, force: true });
 });
 
+test("singleton guard: a foreign active instance suppresses all registration", () => {
+	const KEY = Symbol.for("no-more-agents-dot-md:active-instance");
+	const g = globalThis as Record<symbol, unknown>;
+	const saved = g[KEY];
+	g[KEY] = {}; // a foreign copy (other install path) holds the guard
+	try {
+		const pi = makePi();
+		createExtension(pi as never);
+		assert.equal(Object.keys(pi.commands).length, 0, "no /nma duplicate");
+		assert.equal(Object.keys(pi.handlers).length, 0, "no duplicate handlers");
+	} finally {
+		if (saved === undefined) delete g[KEY];
+		else g[KEY] = saved;
+	}
+});
+
 test("once: true injects only on the first matching turn", async () => {
 	const pi = makePi();
 	createExtension(pi as any);
