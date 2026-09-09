@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseSections } from "./convert.ts";
+import { assignNames, parseSections, slugify } from "./convert.ts";
 
 test("parseSections: splits on ATX headings, keeps original line numbers", () => {
 	const raw = [
@@ -87,4 +87,38 @@ test("parseSections: heading-only sections (no body) are dropped", () => {
 	const sections = parseSections(raw);
 	assert.equal(sections.length, 1);
 	assert.equal(sections[0].title, "B");
+});
+
+test("slugify: kebab-case, diacritics folded, symbols dashed", () => {
+	assert.equal(slugify("Build & Test"), "build-test");
+	assert.equal(slugify("CI/CD pipeline"), "ci-cd-pipeline");
+	assert.equal(slugify("Émotions & accents"), "emotions-accents");
+	assert.equal(slugify("  --Weird__title!!  "), "weird-title");
+});
+
+test("slugify: truncates to 48 chars and never ends with a dash", () => {
+	const long = slugify("a".repeat(60) + "-tail");
+	assert.ok(long.length <= 48);
+	assert.ok(!long.endsWith("-"));
+});
+
+test("slugify: empty or symbol-only titles fall back to 'section'", () => {
+	assert.equal(slugify(""), "section");
+	assert.equal(slugify("---"), "section");
+	assert.equal(slugify("###"), "section");
+});
+
+test("assignNames: dedupes among sections and against existing rule names", () => {
+	const sections = parseSections("# Git safety\nx\n\n# Git safety\ny\n\n# Testing\nz");
+	const named = assignNames(sections, ["git-safety"]);
+	assert.deepEqual(
+		named.map((n) => n.name),
+		["git-safety-2", "git-safety-3", "testing"],
+	);
+});
+
+test("assignNames: existing names are matched case-insensitively", () => {
+	const sections = parseSections("# Testing\nx");
+	const named = assignNames(sections, ["Testing"]);
+	assert.equal(named[0].name, "testing-2");
 });

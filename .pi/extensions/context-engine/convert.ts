@@ -93,3 +93,33 @@ export function parseSections(raw: string): ConvertSection[] {
 	}
 	return sections.filter((s) => s.lines.join("").trim() !== "");
 }
+
+/** Kebab-case slug from a section title (ASCII-folded, ≤48 chars). */
+export function slugify(title: string): string {
+	const slug = title
+		.normalize("NFD")
+		.replace(/[\u0300-\u036f]/g, "")
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, "-")
+		.replace(/^-+|-+$/g, "")
+		.slice(0, 48)
+		.replace(/-+$/g, "");
+	return slug === "" ? "section" : slug;
+}
+
+/** Suggest a unique <name>.md stem per section, deduped against the
+ * existing rule names (case-insensitive) and among the sections. */
+export function assignNames(
+	sections: ConvertSection[],
+	existing: string[] = [],
+): NamedSection[] {
+	const taken = new Set(existing.map((n) => n.toLowerCase()));
+	return sections.map((section) => {
+		const base = slugify(section.title);
+		let name = base;
+		let n = 2;
+		while (taken.has(name)) name = `${base}-${n++}`;
+		taken.add(name);
+		return { section, name };
+	});
+}
