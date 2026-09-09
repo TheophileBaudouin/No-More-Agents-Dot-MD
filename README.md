@@ -1,3 +1,6 @@
+<!-- markdownlint-disable MD033 MD041 -- banner is an <img>, not a heading -->
+<img src="https://raw.githubusercontent.com/TheophileBaudouin/No-More-Agents-Dot-MD/main/assets/image.png" alt="No More Agents Dot MD — context at the right moment" width="100%">
+
 ![npm downloads](https://img.shields.io/npm/dm/no-more-agents-dot-md)
 
 # No More Agents Dot MD
@@ -146,10 +149,6 @@ cd .pi/extensions/context-engine && node --test "*.test.ts" "security/*.test.ts"
 
 Zero runtime npm dependencies (native `fetch` for the optional network
 signals); runs on Node ≥ 22.6 (native TS type-stripping).
-
-## What a context file looks like
-
-<img src="assets/image.png" alt="A context file: YAML frontmatter and Markdown body" width="700"/>
 
 ## License
 
