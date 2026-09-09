@@ -47,11 +47,12 @@ export function parseSections(raw: string): ConvertSection[] {
 		const lineNo = i + 1;
 		const line = lines[i];
 		const wasOpen = fence !== null;
-		fence = fence === null
-			? (/^ {0,3}(`{3,}|~{3,})/.exec(line)?.[1]?.[0] ?? null)
-			: isClosingFence(line, fence)
-				? null
-				: fence;
+		fence =
+			fence === null
+				? (/^ {0,3}(`{3,}|~{3,})/.exec(line)?.[1]?.[0] ?? null)
+				: isClosingFence(line, fence)
+					? null
+					: fence;
 		const m = !wasOpen && fence === null ? ATX_HEADING_RE.exec(line) : null;
 		if (m) {
 			if (current) {
@@ -141,7 +142,9 @@ export function buildPlan(input: {
 	const out: string[] = [];
 	out.push(`**/nma convert — plan**`, ``);
 	out.push(`**Source:** ${input.sourceRel} — ${input.named.length} section(s)`);
-	out.push(`**Target:** \`${input.targetDir}/\` — ${input.existing.length} existing rule file(s)`);
+	out.push(
+		`**Target:** \`${input.targetDir}/\` — ${input.existing.length} existing rule file(s)`,
+	);
 	out.push(
 		input.yesFlag
 			? `**Overwrite policy:** \`--yes\` — overwriting existing rule files is pre-approved`
@@ -199,7 +202,9 @@ export function buildBrief(input: {
 	out.push(
 		`2. For each section, classify its content and emit ONE OR MORE atomic rule files — one topic per file; split a section further when it mixes topics. Suggested names above are unique against existing rules; you may refine them (kebab-case) as long as they stay unique.`,
 	);
-	out.push(`3. Classification guide (the skill's decision tree has the details):`);
+	out.push(
+		`3. Classification guide (the skill's decision tree has the details):`,
+	);
 	out.push(
 		`   - Conventions / standing instructions → \`before_agent_start\` + \`inject\`; add \`once: true\` for session-level conventions; add \`match: {input: {contains: [...]}}\` when the guidance only matters for a topic.`,
 	);

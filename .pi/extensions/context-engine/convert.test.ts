@@ -1,15 +1,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { assignNames, buildBrief, buildPlan, parseSections, slugify } from "./convert.ts";
+import {
+	assignNames,
+	buildBrief,
+	buildPlan,
+	parseSections,
+	slugify,
+} from "./convert.ts";
 
 test("parseSections: splits on ATX headings, keeps original line numbers", () => {
-	const raw = [
-		"# Setup",
-		"Run setup first.",
-		"",
-		"## Tests",
-		"npm test",
-	].join("\n");
+	const raw = ["# Setup", "Run setup first.", "", "## Tests", "npm test"].join(
+		"\n",
+	);
 	const sections = parseSections(raw);
 	assert.equal(sections.length, 2);
 	assert.deepEqual(
@@ -35,24 +37,42 @@ test("parseSections: headings inside fenced code blocks are not headings", () =>
 	].join("\n");
 	const sections = parseSections(raw);
 	assert.equal(sections.length, 2);
-	assert.deepEqual(sections[0].lines, ["```bash", "# not a heading", "npm run build", "```"]);
+	assert.deepEqual(sections[0].lines, [
+		"```bash",
+		"# not a heading",
+		"npm run build",
+		"```",
+	]);
 	assert.equal(sections[1].title, "Deploy");
 });
 
 test("parseSections: tilde fences are tracked too", () => {
 	const raw = ["# A", "~~~", "# still code", "~~~", "## B", "x"].join("\n");
 	const sections = parseSections(raw);
-	assert.deepEqual(sections.map((s) => s.title), ["A", "B"]);
+	assert.deepEqual(
+		sections.map((s) => s.title),
+		["A", "B"],
+	);
 });
 
 test("parseSections: preamble before the first heading becomes an Overview section", () => {
-	const raw = ["Welcome to my project.", "This line matters.", "", "## Conventions", "use tabs"].join("\n");
+	const raw = [
+		"Welcome to my project.",
+		"This line matters.",
+		"",
+		"## Conventions",
+		"use tabs",
+	].join("\n");
 	const sections = parseSections(raw);
 	assert.equal(sections.length, 2);
 	assert.equal(sections[0].title, "Overview");
 	assert.equal(sections[0].level, 0);
 	assert.equal(sections[0].startLine, 1);
-	assert.deepEqual(sections[0].lines, ["Welcome to my project.", "This line matters.", ""]);
+	assert.deepEqual(sections[0].lines, [
+		"Welcome to my project.",
+		"This line matters.",
+		"",
+	]);
 });
 
 test("parseSections: file without headings is one Overview section", () => {
@@ -64,7 +84,16 @@ test("parseSections: file without headings is one Overview section", () => {
 });
 
 test("parseSections: leading frontmatter is skipped but line numbers stay absolute", () => {
-	const raw = ["---", "title: x", "---", "", "# Setup", "Run setup.", "## Tests", "npm test"].join("\n");
+	const raw = [
+		"---",
+		"title: x",
+		"---",
+		"",
+		"# Setup",
+		"Run setup.",
+		"## Tests",
+		"npm test",
+	].join("\n");
 	const sections = parseSections(raw);
 	assert.equal(sections.length, 2);
 	assert.equal(sections[0].startLine, 5);
@@ -109,7 +138,9 @@ test("slugify: empty or symbol-only titles fall back to 'section'", () => {
 });
 
 test("assignNames: dedupes among sections and against existing rule names", () => {
-	const sections = parseSections("# Git safety\nx\n\n# Git safety\ny\n\n# Testing\nz");
+	const sections = parseSections(
+		"# Git safety\nx\n\n# Git safety\ny\n\n# Testing\nz",
+	);
 	const named = assignNames(sections, ["git-safety"]);
 	assert.deepEqual(
 		named.map((n) => n.name),
@@ -123,7 +154,13 @@ test("assignNames: existing names are matched case-insensitively", () => {
 	assert.equal(named[0].name, "testing-2");
 });
 
-const SAMPLE = ["# Git safety", "never force push", "", "## Testing", "run npm test"].join("\n");
+const SAMPLE = [
+	"# Git safety",
+	"never force push",
+	"",
+	"## Testing",
+	"run npm test",
+].join("\n");
 
 function sampleInput(yesFlag = false) {
 	const sections = parseSections(SAMPLE);
@@ -158,9 +195,15 @@ test("buildPlan: --yes flips the overwrite policy line", () => {
 
 test("buildBrief: is addressed to the agent and names the skill", () => {
 	const brief = buildBrief(sampleInput());
-	assert.match(brief, /Convert `AGENTS\.md` into atomic, event-driven rule files/);
+	assert.match(
+		brief,
+		/Convert `AGENTS\.md` into atomic, event-driven rule files/,
+	);
 	assert.match(brief, /no-more-agents-dot-md/); // bold markers sit inside the phrase
-	assert.match(brief, /`git-safety` — "Git safety" \(lines 1–3, heading level 1\)/);
+	assert.match(
+		brief,
+		/`git-safety` — "Git safety" \(lines 1–3, heading level 1\)/,
+	);
 	assert.match(brief, /`before_agent_start` \+ `inject`/);
 	assert.match(brief, /`once: true`/);
 	assert.match(brief, /`tool_call` \+ `block` or `confirm`/);
@@ -177,5 +220,8 @@ test("buildBrief: is addressed to the agent and names the skill", () => {
 test("buildBrief: --yes pre-approves overwrites", () => {
 	const brief = buildBrief(sampleInput(true));
 	assert.match(brief, /pre-approved \(`--yes`\)/);
-	assert.doesNotMatch(brief, /Never overwrite an existing rule file without asking/);
+	assert.doesNotMatch(
+		brief,
+		/Never overwrite an existing rule file without asking/,
+	);
 });

