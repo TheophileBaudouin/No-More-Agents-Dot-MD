@@ -93,7 +93,8 @@ Adding a capability is a small, contained change:
 | A new **event** | `index.ts` (handler + subject), `engine.ts` (`VALID_EVENTS`, compat table) | also the skill + reference |
 | A new **action** | `engine.ts` (union type, compat table), `index.ts` (switch cases) | validation comes free |
 | A new **match key** | `match.ts` (`matchRule`), the `Subject` type | semantics doc'd in reference |
-| A new **/nma subcommand** | `index.ts` (handler) | list/reload/status/security/share/trust/untrust as pattern |
+| A new **/nma subcommand** | `index.ts` (handler) | list/reload/status/import/convert/share/security/trust/untrust as pattern |
+| AGENTS.md conversion (`/nma convert`) | `convert.ts` (pure) + `index.ts` (branch) | `parseSections`/`slugify`/`assignNames`/`buildPlan`/`buildBrief`; the brief reaches the agent via `pi.sendUserMessage` (triggers a turn); no rule files are written by the command |
 | A new **scan family** | `security/rules.ts` (signature), `security/scan.ts` (pipeline hook) | calibration corpus (see below) is the gate |
 | A new **decoder** | `security/encoding.ts` (decoder + round-trip check) | depth-capped, exhaustion signaled |
 | A new **network signal** | `security/npm.ts` or `security/urlhaus.ts` | fail to `unknown`, never `safe` |

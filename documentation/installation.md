@@ -79,6 +79,7 @@ Then try the built-in `/nma` command inside pi:
 /nma security   → per-file scan level, load state, trust state, findings
 /nma trust <file> [--yes] → scan + approve a rule file
 /nma untrust <file>       → revoke an approval, reload immediately
+/nma convert [file] [--yes] → split an AGENTS.md into atomic rules (the agent writes them)
 /nma import <name|keywords> [--yes] → import a rule from the community registry
 /nma share      → open the community submission form
 ```

@@ -109,6 +109,7 @@ Reload with `/nma reload` — no restart needed. Full schema in `skill/context-e
 - `/nma security` — per-file scan level, load state, trust state, command guard ON/OFF.
 - `/nma trust <file> [--yes]` — scan + approve a rule file; `/nma untrust <file>` — revoke.
 - `/nma import <name|keywords> [--yes]` — search the [community registry](https://theophilebaudouin.github.io/awesome-No-More-Agents-Dot-MD/) by name or keywords (name, tags, category, author) and import a context file into `.pi/context/`. An exact name match imports directly; keyword matches with multiple results open a picker (or a bullet list without a UI). Imported files go through the same security scan and trust flow as local files; `--yes` answers the high/critical and overwrite confirmations when there is no UI.
+- `/nma convert [file] [--yes]` — turn an existing AGENTS.md-style file (default: `AGENTS.md` at the project root) into atomic rules: the command splits it into sections and hands the agent a conversion brief; the agent writes the rule files following the skill. The source file is left untouched — neutralize it yourself once the rules are verified (pi keeps auto-loading it otherwise).
 - `/nma share` — open the community submission form.
 
 ## Share your rules

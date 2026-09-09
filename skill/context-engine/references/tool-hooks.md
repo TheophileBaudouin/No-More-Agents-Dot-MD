@@ -105,6 +105,9 @@ priority: high
   error unless `--yes`; high/critical require confirmation or `--yes`).
 - `/nma import <name|keywords> [--yes]` — import a rule from the community
   registry.
+- `/nma convert [file] [--yes]` — split an AGENTS.md-style file into atomic
+  rules: the command hands the agent a conversion brief and the agent writes
+  the rule files following this skill.
 - `/nma untrust <file>` — revoke an approval and reload.
 - `/nma share` — open the community submission form.
 
