@@ -85,4 +85,4 @@ is about something else, the agent never sees them.
 - It is **not** a "no AGENTS.md ever" dogmatic rule — the point is that you no
   longer *need* one monolith. (The project itself runs without one, as a proof.)
 - It is **not** a general automation platform — it is deliberately small:
-  17 source files (4 core + 13 security), zero runtime npm dependencies.
+  20 source files (7 core + 13 security), zero runtime npm dependencies.

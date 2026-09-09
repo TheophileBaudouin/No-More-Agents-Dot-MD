@@ -131,6 +131,7 @@ The engine also informs you without being asked (only when a UI is present):
 | `frontmatter.ts` | YAML-subset parser (zero dependencies) |
 | `match.ts` | the 10 match keys, pure — no pi imports |
 | `engine.ts` | rule model, loader, validation, `selectForEvent` — pure |
+| `convert.ts` | `/nma convert`: fence-aware section parsing, slug/name assignment, plan + brief builders — pure |
 | `index.ts` | pi wiring: subjects, handlers, `/nma`, security gate + action barrier — the only file importing pi |
 | `security/types.ts` | findings, risk levels, weights, aggregation |
 | `security/scan.ts` | scan pipeline: decode → unicode → markdown → rules → external refs → code blocks; provenance + nudge |

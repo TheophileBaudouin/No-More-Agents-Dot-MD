@@ -8,7 +8,7 @@ decisions, the data flow, and how to extend the engine. If you just want to
 
 1. **Zero npm dependencies.** The YAML frontmatter is parsed by a hand-written
    YAML-subset parser (~100 lines) — no YAML library, no framework. The whole
-   engine is 17 source files (4 core + 13 in `security/`) and runs on
+   engine is 20 source files (7 core + 13 in `security/`) and runs on
    Node ≥ 22.6 (native TS type-stripping, tests via
    `node --test "*.test.ts" "security/*.test.ts"`).
 2. **Pure core, thin shell.** `frontmatter.ts`, `match.ts` and `engine.ts`
@@ -46,7 +46,7 @@ decisions, the data flow, and how to extend the engine. If you just want to
         ▼
   index.ts: handlers (pi.on(...))      index.ts: /nma command
      • build Subject (enriched with    • list / reload / status / security /
-       model, cwd, sessionSize,          share / trust / untrust
+       model, cwd, sessionSize,          share / import / convert / trust / untrust
        contextFill from the context)   • backed by the activity journal
      • action barrier (securityBarrier)  (capped at 100 entries)
        scans tool input before user
@@ -129,7 +129,7 @@ naming the file, instead of silently misbehaving.
 cd .pi/extensions/context-engine && node --test "*.test.ts" "security/*.test.ts"
 ```
 
-The suite (468 tests across 19 files) covers the parser, the matcher, the
+The suite (538 tests across 22 files) covers the parser, the matcher, the
 engine validation, the security scanner (decode, unicode, rules, commands,
 network, trust, calibration), and — through a fake-pi harness in
 `index.test.ts` — every event handler and the `/nma` command. The fake-pi
