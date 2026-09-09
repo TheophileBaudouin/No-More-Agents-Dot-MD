@@ -185,4 +185,6 @@ any), or `{contains: [...]}` / `{regex: [...]}` for explicit control.
 ## Next
 
 Browse ready-to-copy recipes in [Examples](examples.md), or go deep on the full
-contract in [Reference](reference.md).
+contract in [Reference](reference.md). And if an `AGENTS.md` already sits at
+your project root, `/nma convert` bootstraps atomic rules from it — no hand
+writing needed.

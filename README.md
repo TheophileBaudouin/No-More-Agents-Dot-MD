@@ -32,6 +32,9 @@ But stopping there felt like a shame: you'd only be able to produce files compat
         ├── engine.ts        #   rule model + loader + validation
         ├── match.ts         #   declarative matcher
         ├── frontmatter.ts   #   YAML-subset parser
+        ├── convert.ts       #   /nma convert — AGENTS.md → atomic-rule brief
+        ├── guard.ts         #   double-load singleton guard
+        ├── registry.ts      #   community-registry client (/nma import)
         └── security/        #   scan gate + action barrier + trust
             ├── scan.ts      #   scan pipeline (decode → rules → code)
             ├── rules.ts     #   prompt-injection signatures

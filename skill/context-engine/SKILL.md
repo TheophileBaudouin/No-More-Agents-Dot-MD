@@ -28,7 +28,7 @@ directory when it is missing.
 - **notify** — visual feedback; the extension also notifies automatically when
   a rule injects or blocks.
 - **`/nma`** — list, reload (no pi restart) and inspect rule state.
-- **`/nma convert [file]`** — bootstrap a ruleset from an existing AGENTS.md-style file: the command splits it into sections and hands the agent a conversion brief; the authoring itself follows this skill.
+- **`/nma convert [file] [--yes]`** — bootstrap a ruleset from an existing AGENTS.md-style file: the command splits it into sections and hands the agent a conversion brief; the authoring itself follows this skill.
 
 ## Workflow
 

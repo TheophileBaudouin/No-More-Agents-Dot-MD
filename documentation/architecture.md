@@ -11,10 +11,10 @@ decisions, the data flow, and how to extend the engine. If you just want to
    engine is 20 source files (7 core + 13 in `security/`) and runs on
    Node ≥ 22.6 (native TS type-stripping, tests via
    `node --test "*.test.ts" "security/*.test.ts"`).
-2. **Pure core, thin shell.** `frontmatter.ts`, `match.ts` and `engine.ts`
-   never import pi. They receive plain data and return plain data — which makes
-   them trivially unit-testable. Only `index.ts` (the "shell") imports pi and
-   wires events to the core.
+2. **Pure core, thin shell.** `frontmatter.ts`, `match.ts`, `engine.ts` and
+   `convert.ts` never import pi. They receive plain data and return plain
+   data — which makes them trivially unit-testable. Only `index.ts` (the
+   "shell") imports pi and wires events to the core.
 3. **Markdown is the context; YAML is the behavior.** The frontmatter never
    reaches the LLM. The body is the content — and it is injected only when the
    rule fires.
