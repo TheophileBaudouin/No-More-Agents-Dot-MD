@@ -222,7 +222,10 @@ export function buildBrief(input: {
 		`   - Flat file \`.pi/context/<name>.md\`; file name = rule \`name\`; all names unique; never \`README.md\`.`,
 	);
 	out.push(
-		`   - YAML-subset frontmatter only: \`key: value\`, inline \`[a, b]\`, inline maps, 2-space nesting; \`name\`, non-empty \`events\`, and \`action.type\` required; \`action.type\` must be allowed for EVERY listed event.`,
+		`   - File skeleton: line 1 is exactly \`---\`, the frontmatter follows, then a closing line \`---\`, then the body — a file that does not START with the \`---\` line is silently ignored as inert documentation.`,
+	);
+	out.push(
+		`   - YAML-subset frontmatter only (between the two \`---\` lines): \`key: value\`, inline \`[a, b]\`, inline maps, 2-space nesting; \`name\`, non-empty \`events\`, and \`action.type\` required; \`action.type\` must be allowed for EVERY listed event.`,
 	);
 	out.push(
 		`   - Bodies carry context only — minimal, behavior-changing facts; frontmatter never reaches the model.`,

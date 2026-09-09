@@ -208,6 +208,7 @@ test("buildBrief: is addressed to the agent and names the skill", () => {
 	assert.match(brief, /`once: true`/);
 	assert.match(brief, /`tool_call` \+ `block` or `confirm`/);
 	assert.match(brief, /DROP it/);
+	assert.match(brief, /line 1 is exactly `---`/); // smoke-test finding: agent omitted the opening fence
 	assert.match(brief, /YAML-subset frontmatter/);
 	assert.match(brief, /≤ 200 chars/);
 	assert.match(brief, /Never overwrite an existing rule file without asking/);
