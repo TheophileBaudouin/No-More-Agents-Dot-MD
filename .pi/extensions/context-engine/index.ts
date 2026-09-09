@@ -49,6 +49,12 @@ import {
 } from "./security/types.ts";
 import { isNetworkEnabled } from "./security/config.ts";
 import { fetchIndex, fetchContext, matchEntries } from "./registry.ts";
+import {
+	assignNames,
+	buildBrief,
+	buildPlan,
+	parseSections,
+} from "./convert.ts";
 
 const CONTEXT_DIR = ".pi/context";
 
@@ -128,7 +134,10 @@ export default function (pi: ExtensionAPI) {
 		try {
 			const rule = parseContextFile(raw, file);
 			if (rule)
-				// action + match: the F6 gate validates user match.regex (ReDoS caps).
+				// SAFETY: rule.action/rule.match come from parseContextFile's
+				// already-validated Rule shape; the scanner only reads them as
+				// untyped metadata, and the F6 gate independently validates user
+				// match.regex (ReDoS caps) before anything reaches the engine.
 				return { action: rule.action, match: rule.match } as unknown as Record<
 					string,
 					unknown
@@ -830,12 +839,13 @@ export default function (pi: ExtensionAPI) {
 	// Output is shown in the transcript (pi.sendMessage), never in the input editor.
 	pi.registerCommand("nma", {
 		description:
-			"No More Agents Dot MD: /nma (list), /nma reload, /nma status, /nma import <name|keywords> [--yes], /nma share, /nma security, /nma trust <file> [--yes], /nma untrust <file>",
+			"No More Agents Dot MD: /nma (list), /nma reload, /nma status, /nma import <name|keywords> [--yes], /nma convert [file] [--yes], /nma share, /nma security, /nma trust <file> [--yes], /nma untrust <file>",
 		getArgumentCompletions: (prefix: string) => {
 			const items = [
 				"reload",
 				"status",
 				"import",
+				"convert",
 				"share",
 				"security",
 				"trust",
@@ -1022,6 +1032,64 @@ export default function (pi: ExtensionAPI) {
 				}
 				await reload(ctx.cwd, ctx);
 				notify(`imported ${name} (${level})`);
+				return;
+			}
+			if (cmd === "convert") {
+				const yesFlag = parts.includes("--yes");
+				// --yes is stripped so it never leaks into the source path.
+				const rawPath = parts
+					.slice(1)
+					.filter((p) => p !== "--yes")
+					.join(" ")
+					.trim();
+				const sourceRel = rawPath || "AGENTS.md";
+				const sourceAbs = path.resolve(ctx.cwd, sourceRel);
+				if (!fs.existsSync(sourceAbs) || !fs.statSync(sourceAbs).isFile()) {
+					notify(
+						`convert: source not found: ${sourceRel} (usage: /nma convert [file] [--yes])`,
+						"error",
+					);
+					return;
+				}
+				const raw = fs.readFileSync(sourceAbs, "utf8");
+				if (Buffer.byteLength(raw, "utf8") > 5_000_000) {
+					notify(
+						`convert: ${sourceRel} is too large to convert (5 MB cap)`,
+						"error",
+					);
+					return;
+				}
+				const sections = parseSections(raw);
+				if (sections.length === 0) {
+					notify(`convert: no sections found in ${sourceRel}`, "error");
+					return;
+				}
+				// Same flat-discovery rules as loadContextDir: top-level *.md,
+				// README.md skipped — the agent output must not collide with them.
+				const dir = path.join(ctx.cwd, CONTEXT_DIR);
+				fs.mkdirSync(dir, { recursive: true });
+				const existing = fs
+					.readdirSync(dir)
+					.filter((f) => f.endsWith(".md") && f.toLowerCase() !== "readme.md")
+					.map((f) => f.replace(/\.md$/i, ""));
+				const named = assignNames(sections, existing);
+				pi.sendMessage({
+					customType: BRAND,
+					content: buildPlan({
+						sourceRel,
+						targetDir: CONTEXT_DIR,
+						named,
+						existing,
+						yesFlag,
+					}),
+					display: true,
+				});
+				// The brief is a user message: pi always triggers a turn for it,
+				// so the agent starts the conversion right away.
+				pi.sendUserMessage(
+					buildBrief({ sourceRel, named, existing, yesFlag }),
+				);
+				notify(`convert: ${named.length} section(s) ready from ${sourceRel}`);
 				return;
 			}
 			if (cmd === "security") {

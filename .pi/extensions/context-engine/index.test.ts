@@ -43,6 +43,7 @@ type FakePi = {
 		content: unknown;
 		display: boolean;
 	}) => void;
+	sendUserMessage: (content: string) => void;
 };
 
 function makePi(): FakePi {
@@ -70,6 +71,7 @@ function makePi(): FakePi {
 			activeTools.push(...names);
 		},
 		sendMessage: () => undefined,
+		sendUserMessage: () => undefined,
 	};
 }
 
@@ -738,6 +740,7 @@ test("nma share shows the submission form URL and autocompletes all parameters",
 		value: string;
 	}>;
 	assert.deepEqual(all.map((i) => i.value).sort(), [
+		"convert",
 		"import",
 		"reload",
 		"security",
@@ -1805,5 +1808,130 @@ test("/nma import: high-risk content refused when the user declines confirm", as
 		JSON.stringify(notifyCalls),
 	);
 	assert.ok(!fs.existsSync(path.join(cwd, ".pi/context/conventional-commits.md")));
+	fs.rmSync(cwd, { recursive: true, force: true });
+});
+
+// ---------------------------------------------------------------------------
+// /nma convert — brief-driven AGENTS.md conversion
+// ---------------------------------------------------------------------------
+
+const CONVERT_SAMPLE = [
+	"# Git safety",
+	"never force push",
+	"",
+	"## Testing",
+	"run npm test",
+].join("\n");
+
+test("/nma convert: missing source -> usage error, no plan, no brief", async () => {
+	const pi = makePi();
+	createExtension(pi as any);
+	const cwd = makeProject({});
+	const { ctx, notifyCalls } = makeCtx({ cwd, hasUI: true });
+	const sent: Array<{ customType: string; content: unknown }> = [];
+	pi.sendMessage = (msg) => void sent.push(msg);
+	const userMessages: string[] = [];
+	pi.sendUserMessage = (content: string) => void userMessages.push(content);
+
+	await pi.commands["nma"].handler("convert", ctx);
+
+	assert.ok(
+		notifyCalls.some(
+			(n) => n.level === "error" && /usage: \/nma convert/.test(n.message),
+		),
+		JSON.stringify(notifyCalls),
+	);
+	assert.equal(sent.length, 0);
+	assert.equal(userMessages.length, 0);
+	fs.rmSync(cwd, { recursive: true, force: true });
+});
+
+test("/nma convert: default AGENTS.md -> plan + brief + .pi/context created", async () => {
+	const pi = makePi();
+	createExtension(pi as any);
+	const cwd = makeProject({ "AGENTS.md": CONVERT_SAMPLE });
+	const { ctx, notifyCalls } = makeCtx({ cwd, hasUI: true });
+	const sent: Array<{ customType: string; content: unknown }> = [];
+	pi.sendMessage = (msg) => void sent.push(msg);
+	const userMessages: string[] = [];
+	pi.sendUserMessage = (content: string) => void userMessages.push(content);
+
+	await pi.commands["nma"].handler("convert", ctx);
+
+	assert.equal(sent.length, 1);
+	assert.equal(sent[0].customType, "No More Agents Dot MD");
+	const plan = String(sent[0].content);
+	assert.match(plan, /\/nma convert — plan/);
+	assert.match(plan, /\*\*Source:\*\* AGENTS\.md — 2 section\(s\)/);
+	assert.match(plan, /`git-safety`/);
+	assert.match(plan, /`testing`/);
+
+	assert.equal(userMessages.length, 1);
+	const brief = userMessages[0];
+	assert.match(brief, /Convert `AGENTS\.md` into atomic/);
+	assert.match(brief, /no-more-agents-dot-md/); // bold markers sit inside the phrase
+	assert.match(brief, /\/nma reload/);
+
+	assert.ok(fs.existsSync(path.join(cwd, ".pi", "context")));
+	assert.ok(
+		notifyCalls.some((n) =>
+			/convert: 2 section\(s\) ready from AGENTS\.md/.test(n.message),
+		),
+		JSON.stringify(notifyCalls),
+	);
+	fs.rmSync(cwd, { recursive: true, force: true });
+});
+
+test("/nma convert: --yes pre-approves overwrites in plan and brief", async () => {
+	const pi = makePi();
+	createExtension(pi as any);
+	const cwd = makeProject({ "AGENTS.md": CONVERT_SAMPLE });
+	const { ctx } = makeCtx({ cwd, hasUI: true });
+	const sent: Array<{ content: unknown }> = [];
+	pi.sendMessage = (msg) => void sent.push(msg);
+	const userMessages: string[] = [];
+	pi.sendUserMessage = (content: string) => void userMessages.push(content);
+
+	await pi.commands["nma"].handler("convert --yes", ctx);
+
+	assert.match(String(sent[0].content), /pre-approved/);
+	assert.match(userMessages[0], /pre-approved \(`--yes`\)/);
+	fs.rmSync(cwd, { recursive: true, force: true });
+});
+
+test("/nma convert: custom path argument is honored", async () => {
+	const pi = makePi();
+	createExtension(pi as any);
+	const cwd = makeProject({ "docs/CLAUDE.md": CONVERT_SAMPLE });
+	const { ctx } = makeCtx({ cwd, hasUI: true });
+	const userMessages: string[] = [];
+	pi.sendUserMessage = (content: string) => void userMessages.push(content);
+
+	await pi.commands["nma"].handler("convert docs/CLAUDE.md", ctx);
+
+	assert.match(userMessages[0], /Convert `docs\/CLAUDE\.md` into atomic/);
+	fs.rmSync(cwd, { recursive: true, force: true });
+});
+
+test("/nma convert: suggested names avoid existing rules", async () => {
+	const pi = makePi();
+	createExtension(pi as any);
+	const cwd = makeProject({
+		"AGENTS.md": CONVERT_SAMPLE,
+		".pi/context/git-safety.md":
+			"---\nname: git-safety\nevents: [user_bash]\naction:\n  type: block\n---\n",
+	});
+	const { ctx } = makeCtx({ cwd, hasUI: true });
+	const sent: Array<{ content: unknown }> = [];
+	pi.sendMessage = (msg) => void sent.push(msg);
+	const userMessages: string[] = [];
+	pi.sendUserMessage = (content: string) => void userMessages.push(content);
+
+	await pi.commands["nma"].handler("convert", ctx);
+
+	const plan = String(sent[0].content);
+	assert.match(plan, /`git-safety-2`/);
+	assert.match(plan, /1 existing rule file\(s\)/);
+	assert.match(userMessages[0], /`git-safety-2`/);
 	fs.rmSync(cwd, { recursive: true, force: true });
 });
