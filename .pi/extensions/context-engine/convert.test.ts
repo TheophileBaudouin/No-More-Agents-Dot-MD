@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { assignNames, parseSections, slugify } from "./convert.ts";
+import { assignNames, buildBrief, buildPlan, parseSections, slugify } from "./convert.ts";
 
 test("parseSections: splits on ATX headings, keeps original line numbers", () => {
 	const raw = [
@@ -121,4 +121,61 @@ test("assignNames: existing names are matched case-insensitively", () => {
 	const sections = parseSections("# Testing\nx");
 	const named = assignNames(sections, ["Testing"]);
 	assert.equal(named[0].name, "testing-2");
+});
+
+const SAMPLE = ["# Git safety", "never force push", "", "## Testing", "run npm test"].join("\n");
+
+function sampleInput(yesFlag = false) {
+	const sections = parseSections(SAMPLE);
+	return {
+		sourceRel: "AGENTS.md",
+		targetDir: ".pi/context",
+		named: assignNames(sections, []),
+		existing: ["ui-context"],
+		yesFlag,
+	};
+}
+
+test("buildPlan: summarizes source, target, policy and per-section names", () => {
+	const plan = buildPlan(sampleInput());
+	assert.match(plan, /\*\*\/nma convert — plan\*\*/);
+	assert.match(plan, /\*\*Source:\*\* AGENTS\.md — 2 section\(s\)/);
+	assert.match(plan, /1 existing rule file\(s\)/); // existing: ["ui-context"]
+	assert.match(plan, /`git-safety`/);
+	assert.match(plan, /"Git safety" \(l\. 1–3\)/);
+	assert.match(plan, /asks before overwriting/);
+	assert.match(plan, /auto-loaded by pi/);
+});
+
+// (fixture note: `existing: ["ui-context"]` is the PRE-EXISTING rule list;
+// the plan renders it verbatim as "1 existing rule file(s)".)
+
+test("buildPlan: --yes flips the overwrite policy line", () => {
+	const plan = buildPlan(sampleInput(true));
+	assert.match(plan, /pre-approved/);
+	assert.doesNotMatch(plan, /asks before overwriting/);
+});
+
+test("buildBrief: is addressed to the agent and names the skill", () => {
+	const brief = buildBrief(sampleInput());
+	assert.match(brief, /Convert `AGENTS\.md` into atomic, event-driven rule files/);
+	assert.match(brief, /no-more-agents-dot-md/); // bold markers sit inside the phrase
+	assert.match(brief, /`git-safety` — "Git safety" \(lines 1–3, heading level 1\)/);
+	assert.match(brief, /`before_agent_start` \+ `inject`/);
+	assert.match(brief, /`once: true`/);
+	assert.match(brief, /`tool_call` \+ `block` or `confirm`/);
+	assert.match(brief, /DROP it/);
+	assert.match(brief, /YAML-subset frontmatter/);
+	assert.match(brief, /≤ 200 chars/);
+	assert.match(brief, /Never overwrite an existing rule file without asking/);
+	assert.match(brief, /Do not modify or delete `AGENTS\.md`/);
+	assert.match(brief, /\/nma reload/);
+	assert.match(brief, /verify with `\/nma`/);
+	assert.match(brief, /still auto-loaded by pi/);
+});
+
+test("buildBrief: --yes pre-approves overwrites", () => {
+	const brief = buildBrief(sampleInput(true));
+	assert.match(brief, /pre-approved \(`--yes`\)/);
+	assert.doesNotMatch(brief, /Never overwrite an existing rule file without asking/);
 });

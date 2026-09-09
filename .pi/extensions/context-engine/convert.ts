@@ -123,3 +123,116 @@ export function assignNames(
 		return { section, name };
 	});
 }
+
+function lineRange(s: ConvertSection): string {
+	return s.startLine === s.endLine
+		? `l. ${s.startLine}`
+		: `l. ${s.startLine}–${s.endLine}`;
+}
+
+/** Human-readable plan block (transcript, via pi.sendMessage). */
+export function buildPlan(input: {
+	sourceRel: string;
+	targetDir: string;
+	named: NamedSection[];
+	existing: string[];
+	yesFlag: boolean;
+}): string {
+	const out: string[] = [];
+	out.push(`**/nma convert — plan**`, ``);
+	out.push(`**Source:** ${input.sourceRel} — ${input.named.length} section(s)`);
+	out.push(`**Target:** \`${input.targetDir}/\` — ${input.existing.length} existing rule file(s)`);
+	out.push(
+		input.yesFlag
+			? `**Overwrite policy:** \`--yes\` — overwriting existing rule files is pre-approved`
+			: `**Overwrite policy:** the agent asks before overwriting an existing rule file (or rerun with \`--yes\`)`,
+	);
+	out.push(``);
+	out.push(`| # | Suggested rule name | Source section |`);
+	out.push(`| --- | --- | --- |`);
+	input.named.forEach((n, i) => {
+		out.push(
+			`| ${i + 1} | \`${n.name}\` | "${n.section.title}" (${lineRange(n.section)}) |`,
+		);
+	});
+	if (input.existing.length > 0) {
+		out.push(``);
+		out.push(
+			`Existing rule names: ${input.existing.map((n) => `\`${n}\``).join(", ")}`,
+		);
+	}
+	out.push(``);
+	out.push(
+		`**Note:** the source stays auto-loaded by pi (context files load once at startup) until it is neutralized — see the follow-up in the brief.`,
+	);
+	return out.join("\n");
+}
+
+/** Agent-facing brief (via pi.sendUserMessage — always triggers a turn). */
+export function buildBrief(input: {
+	sourceRel: string;
+	named: NamedSection[];
+	existing: string[];
+	yesFlag: boolean;
+}): string {
+	const out: string[] = [];
+	out.push(
+		`Convert \`${input.sourceRel}\` into atomic, event-driven rule files in \`.pi/context/\`, following the **no-more-agents-dot-md** skill (read its SKILL.md first; consult \`templates/\` and \`references/\` — schema.md, events.md, matching.md, actions.md — as needed).`,
+	);
+	out.push(``);
+	out.push(`## Sections to convert (${input.named.length})`);
+	out.push(``);
+	input.named.forEach((n, i) => {
+		const s = n.section;
+		const range =
+			s.startLine === s.endLine
+				? `line ${s.startLine}`
+				: `lines ${s.startLine}–${s.endLine}`;
+		out.push(
+			`${i + 1}. \`${n.name}\` — "${s.title}" (${range}, heading level ${s.level})`,
+		);
+	});
+	out.push(``);
+	out.push(`## What to do`);
+	out.push(``);
+	out.push(`1. Read \`${input.sourceRel}\` in full.`);
+	out.push(
+		`2. For each section, classify its content and emit ONE OR MORE atomic rule files — one topic per file; split a section further when it mixes topics. Suggested names above are unique against existing rules; you may refine them (kebab-case) as long as they stay unique.`,
+	);
+	out.push(`3. Classification guide (the skill's decision tree has the details):`);
+	out.push(
+		`   - Conventions / standing instructions → \`before_agent_start\` + \`inject\`; add \`once: true\` for session-level conventions; add \`match: {input: {contains: [...]}}\` when the guidance only matters for a topic.`,
+	);
+	out.push(
+		`   - Forbidden or dangerous shell commands → \`tool_call\` + \`block\` or \`confirm\`, mirrored on \`user_bash\` for hand-typed commands; \`priority: high\`, empty body, regexes anchored with \`^\`, each ≤ 200 chars, no nested quantifiers.`,
+	);
+	out.push(
+		`   - Guidance relevant only around a tool or its output → \`tool_call\` or \`tool_result\` + \`inject\` (optionally \`once: true\`), matching \`tool\` / \`command\` / \`result\`.`,
+	);
+	out.push(
+		`   - Pure visual feedback → \`notify\`. Facts, links, roadmap, anything the agent would do anyway → DROP it (no rule).`,
+	);
+	out.push(`4. Hard constraints (a file violating these fails to load):`);
+	out.push(
+		`   - Flat file \`.pi/context/<name>.md\`; file name = rule \`name\`; all names unique; never \`README.md\`.`,
+	);
+	out.push(
+		`   - YAML-subset frontmatter only: \`key: value\`, inline \`[a, b]\`, inline maps, 2-space nesting; \`name\`, non-empty \`events\`, and \`action.type\` required; \`action.type\` must be allowed for EVERY listed event.`,
+	);
+	out.push(
+		`   - Bodies carry context only — minimal, behavior-changing facts; frontmatter never reaches the model.`,
+	);
+	out.push(
+		`   - Plain Markdown bodies: no external URLs, no base64/hex blobs, no prompt-injection phrasing (the security scan blocks or distrusts such files).`,
+	);
+	out.push(
+		input.yesFlag
+			? `5. Overwriting an existing rule file is pre-approved (\`--yes\`); still list every overwrite in your summary.`
+			: `5. Never overwrite an existing rule file without asking the user first; prefer a fresh name.`,
+	);
+	out.push(`6. Do not modify or delete \`${input.sourceRel}\`.`);
+	out.push(
+		`7. When done, report one line per file written (\`name\` — events — action.type), then remind the user to run \`/nma reload\` and verify with \`/nma\`. Also warn the user that \`${input.sourceRel}\` is still auto-loaded by pi (once at startup) — the conversion only reduces context noise once they neutralize the source.`,
+	);
+	return out.join("\n");
+}
